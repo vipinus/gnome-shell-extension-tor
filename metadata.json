@@ -1,7 +1,7 @@
 {
   "uuid": "tor-ext@fabric.soul7.gmail.com",
   "name": "Tor",
-  "description": "Control the Tor network from Quick Settings: toggle on/off, pick exit country, live bootstrap progress, New Identity, obfs4 bridges, and circuit viewer. Talks to tor's ControlPort directly and gates systemctl start/stop through polkit.",
+  "description": "Control the Tor network from Quick Settings: one-click on/off (per-user tor via systemd --user, zero sudo), exit-country picker, live bootstrap progress, New Identity, obfs4 bridges, circuit viewer, and tap-to-copy SOCKS5 endpoint. Talks to tor's ControlPort directly for runtime config. Ships with scripts/install-user-tor.sh for initial $HOME-scoped setup.",
   "shell-version": ["50"],
   "settings-schema": "org.gnome.shell.extensions.tor-ext",
   "url": "https://github.com/vipinus/gnome-shell-extension-tor",
