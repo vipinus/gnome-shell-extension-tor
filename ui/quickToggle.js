@@ -83,11 +83,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._socksItem.connect('activate', () => this._copySocksAddress());
         this.menu.addMenuItem(this._socksItem);
 
-        this._socksHintItem = new PopupMenu.PopupMenuItem('Copy Chrome flag', {reactive: true});
-        this._socksHintItem.label.text = 'Copy --proxy-server flag';
-        this._socksHintItem.connect('activate', () => this._copyChromeFlag());
-        this.menu.addMenuItem(this._socksHintItem);
-
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Row 4 — Circuit viewer (populated lazily when submenu opens)
@@ -309,13 +304,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         const addr = `socks5://127.0.0.1:${port}`;
         St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, addr);
         Main.notify('Tor', `Copied ${addr}`);
-    }
-
-    _copyChromeFlag() {
-        const port = this._settings.get_int('socks-port');
-        const flag = `--proxy-server="socks5://127.0.0.1:${port}"`;
-        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, flag);
-        Main.notify('Tor', 'Copied Chrome flag — append to google-chrome launch command');
     }
 
     async _applyBridges() {
