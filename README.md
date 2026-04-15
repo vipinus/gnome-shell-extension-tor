@@ -17,24 +17,27 @@ Target: **GNOME Shell 50+**, system `tor` package managed by systemd.
 
 ## Install
 
-### From source
+### From source — zero sudo
 
 ```bash
-git clone <repo-url> tor-ext
+git clone https://github.com/vipinus/gnome-shell-extension-tor tor-ext
 cd tor-ext
-make install                 # copies to ~/.local/share/gnome-shell/extensions/
-sudo make polkit-install     # one-time: installs /etc/polkit-1/rules.d/50-tor-ext.rules
-sudo bash scripts/setup-torrc.sh   # one-time: enables ControlPort + CookieAuth, adds you to tor group
-# LOG OUT AND LOG BACK IN (activates the tor group for your shell)
+make install                        # copies to ~/.local/share/gnome-shell/extensions/
+bash scripts/install-user-tor.sh    # per-user tor unit + torrc in $HOME, no sudo
+# Log out and log back in (Wayland), then:
 gnome-extensions enable tor-ext@fabric.soul7.gmail.com
 ```
 
-### Why does it need one-time root setup?
+### Architecture: per-user Tor, no privilege
 
-Runtime reconfiguration (exit country, NEWNYM, bridges) goes through tor's **ControlPort** — no privilege needed.
-But **starting/stopping `tor.service`** requires polkit, and **reading the cookie auth file** requires tor's unix group membership. These are one-time host changes that the extension itself cannot perform.
+The extension runs its own tor instance via `systemd --user` (`~/.config/systemd/user/tor-ext.service`) with config and data dir under `$HOME`. Default ports are **9150/9151** (Tor Browser Bundle convention) so it coexists with any system tor on 9050/9051.
 
-`scripts/setup-torrc.sh` appends three lines to `/etc/tor/torrc` and runs `usermod -aG debian-tor $USER` (or `tor` on Arch/Fedora). The polkit rule grants AUTH_ADMIN_KEEP for `tor@default.service` management to active local users — one password prompt per session.
+- No `sudo` anywhere — unit management goes through the user's own systemd on the session bus.
+- No `/etc/polkit-1` rule — users may freely manage their own units.
+- No group membership — the auth cookie is owned by the user.
+- No `/etc/tor/torrc` edits — config lives at `~/.config/tor-ext/torrc`.
+
+If you already have the system `tor.service` package installed and running, this extension does not interact with it and does not conflict (different ports).
 
 ## Preferences
 

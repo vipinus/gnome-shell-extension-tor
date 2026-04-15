@@ -78,6 +78,20 @@ if (( needs_reload )); then
     sleep 1
 fi
 
+# Disable tor auto-start so the extension fully owns the service lifecycle.
+# Without this, the tile appears "On" after every reboot even when the user
+# never opened it — because Debian's tor package enables the service by default.
+if systemctl is-enabled tor@default >/dev/null 2>&1; then
+    echo ">> disabling tor@default autostart (extension controls on/off)"
+    systemctl disable tor@default 2>&1 | sed 's/^/   /' || true
+fi
+if systemctl is-enabled tor >/dev/null 2>&1; then
+    echo ">> disabling tor autostart"
+    systemctl disable tor 2>&1 | sed 's/^/   /' || true
+fi
+echo ">> stopping tor now (extension will start it on demand)"
+systemctl stop tor@default tor 2>/dev/null || true
+
 echo ">> verification"
 ss -tlnp 2>/dev/null | grep -E ":${CONTROL_PORT}\b" >/dev/null \
     && echo "   ControlPort listening on 127.0.0.1:${CONTROL_PORT}" \

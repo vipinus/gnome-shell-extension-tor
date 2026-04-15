@@ -4,16 +4,16 @@
           path="/org/gnome/shell/extensions/tor-ext/">
 
     <key name="control-port" type="i">
-      <default>9051</default>
+      <default>9151</default>
       <range min="1" max="65535"/>
       <summary>Tor ControlPort</summary>
       <description>TCP port on 127.0.0.1 where tor's ControlPort listens.</description>
     </key>
 
     <key name="cookie-path" type="s">
-      <default>'/run/tor/control.authcookie'</default>
+      <default>'~/.local/share/tor-ext/control_auth_cookie'</default>
       <summary>Cookie authentication file</summary>
-      <description>Path to tor's control auth cookie (32 raw bytes).</description>
+      <description>Path to tor's control auth cookie (32 raw bytes). ~ expands to $HOME at runtime.</description>
     </key>
 
     <key name="control-password" type="s">
@@ -51,7 +51,7 @@
     </key>
 
     <key name="socks-port" type="i">
-      <default>9050</default>
+      <default>9150</default>
       <range min="1" max="65535"/>
       <summary>Tor SOCKS port</summary>
     </key>
