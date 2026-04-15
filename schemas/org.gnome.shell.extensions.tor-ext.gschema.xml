@@ -71,5 +71,15 @@
       <summary>Internal: saved SOCKS port before enabling Tor</summary>
     </key>
 
+    <key name="saved-use-same-proxy" type="b">
+      <default>true</default>
+      <summary>Internal: saved use-same-proxy before enabling Tor</summary>
+    </key>
+
+    <key name="saved-use-same-proxy-set" type="b">
+      <default>false</default>
+      <summary>Internal: whether saved-use-same-proxy contains a captured value</summary>
+    </key>
+
   </schema>
 </schemalist>
