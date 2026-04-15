@@ -9,6 +9,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import St from 'gi://St';
 import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
@@ -77,7 +78,19 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Row 3 — Circuit viewer (populated lazily when submenu opens)
+        // Row 3 — SOCKS connection info (tap to copy)
+        this._socksItem = new PopupMenu.PopupMenuItem(this._socksLabelText());
+        this._socksItem.connect('activate', () => this._copySocksAddress());
+        this.menu.addMenuItem(this._socksItem);
+
+        this._socksHintItem = new PopupMenu.PopupMenuItem('Copy Chrome flag', {reactive: true});
+        this._socksHintItem.label.text = 'Copy --proxy-server flag';
+        this._socksHintItem.connect('activate', () => this._copyChromeFlag());
+        this.menu.addMenuItem(this._socksHintItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Row 4 — Circuit viewer (populated lazily when submenu opens)
         this._circuitItem = new PopupMenu.PopupMenuItem('Circuit: —', {reactive: false});
         this._circuitItem.can_focus = false;
         this.menu.addMenuItem(this._circuitItem);
@@ -166,6 +179,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         if (this._settings.get_boolean('manage-system-proxy'))
             this._proxy.enableSocks();
+        else
+            this._notifyOnce();
 
         this._setSubtitle(this._statusSubtitle());
     }
@@ -270,6 +285,31 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         }
         try { this._controller.close(); } catch (_) {}
         this._controller = null;
+    }
+
+    _notifyOnce() {
+        const port = this._settings.get_int('socks-port');
+        Main.notify('Tor',
+            `Connected. Point your app to SOCKS5 127.0.0.1:${port}. Tap the tile menu for copy-ready values.`);
+    }
+
+    _socksLabelText() {
+        const port = this._settings.get_int('socks-port');
+        return `SOCKS5  127.0.0.1:${port}  (copy)`;
+    }
+
+    _copySocksAddress() {
+        const port = this._settings.get_int('socks-port');
+        const addr = `socks5://127.0.0.1:${port}`;
+        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, addr);
+        Main.notify('Tor', `Copied ${addr}`);
+    }
+
+    _copyChromeFlag() {
+        const port = this._settings.get_int('socks-port');
+        const flag = `--proxy-server="socks5://127.0.0.1:${port}"`;
+        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, flag);
+        Main.notify('Tor', 'Copied Chrome flag — append to google-chrome launch command');
     }
 
     async _applyBridges() {

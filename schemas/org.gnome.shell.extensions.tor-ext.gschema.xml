@@ -23,9 +23,9 @@
     </key>
 
     <key name="manage-system-proxy" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Manage GNOME system SOCKS proxy</summary>
-      <description>When enabled, set org.gnome.system.proxy to manual SOCKS 127.0.0.1:9050 while Tor is on, and revert when Tor is off.</description>
+      <description>When enabled, set org.gnome.system.proxy to manual SOCKS while Tor is on, and revert when Tor is off. Off by default because many browsers (notably Chrome) ignore the GNOME proxy; users should configure apps directly with the SOCKS address shown in the tile.</description>
     </key>
 
     <key name="default-exit-country" type="s">
