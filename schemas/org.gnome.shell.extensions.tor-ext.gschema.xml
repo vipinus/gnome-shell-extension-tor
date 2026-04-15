@@ -23,9 +23,9 @@
     </key>
 
     <key name="manage-system-proxy" type="b">
-      <default>true</default>
+      <default>false</default>
       <summary>Manage GNOME system proxy</summary>
-      <description>When enabled, start an embedded PAC server and set org.gnome.system.proxy mode=auto with autoconfig-url pointing at it. Chrome and most modern browsers honor PAC URLs even when they ignore direct SOCKS gsettings, which is why this is the default. Reverted on toggle off.</description>
+      <description>OFF by default. When enabled, start an embedded PAC server and set org.gnome.system.proxy mode=auto with autoconfig-url pointing at it — this works for libproxy-aware apps (Discord, Evolution) and Firefox with 'Use system proxy settings'. Chrome on recent Linux often ignores it entirely, which is why the default is off and users are pointed at the SOCKS endpoint shown in the tile.</description>
     </key>
 
     <key name="pac-port" type="i">
