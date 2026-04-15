@@ -177,10 +177,16 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         await this._applyBridges();
         await this._applyCurrentCountry();
 
-        if (this._settings.get_boolean('manage-system-proxy'))
-            this._proxy.enableSocks();
-        else
+        if (this._settings.get_boolean('manage-system-proxy')) {
+            try {
+                this._proxy.enableSocks();
+            } catch (e) {
+                console.warn(`[tor-ext] PAC/proxy setup failed: ${e.message}`);
+                Main.notify('Tor', `Proxy auto-config failed: ${e.message}. SOCKS still available at 127.0.0.1:${this._settings.get_int('socks-port')}.`);
+            }
+        } else {
             this._notifyOnce();
+        }
 
         this._setSubtitle(this._statusSubtitle());
     }
@@ -403,6 +409,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         }
         this._detachController();
         this._service?.destroy();
+        this._proxy?.destroy();
         super.destroy();
     }
 });

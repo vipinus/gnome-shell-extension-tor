@@ -23,9 +23,21 @@
     </key>
 
     <key name="manage-system-proxy" type="b">
-      <default>false</default>
-      <summary>Manage GNOME system SOCKS proxy</summary>
-      <description>When enabled, set org.gnome.system.proxy to manual SOCKS while Tor is on, and revert when Tor is off. Off by default because many browsers (notably Chrome) ignore the GNOME proxy; users should configure apps directly with the SOCKS address shown in the tile.</description>
+      <default>true</default>
+      <summary>Manage GNOME system proxy</summary>
+      <description>When enabled, start an embedded PAC server and set org.gnome.system.proxy mode=auto with autoconfig-url pointing at it. Chrome and most modern browsers honor PAC URLs even when they ignore direct SOCKS gsettings, which is why this is the default. Reverted on toggle off.</description>
+    </key>
+
+    <key name="pac-port" type="i">
+      <default>9155</default>
+      <range min="1" max="65535"/>
+      <summary>PAC server TCP port</summary>
+      <description>Port on 127.0.0.1 where the embedded proxy-autoconfig server listens.</description>
+    </key>
+
+    <key name="saved-autoconfig-url" type="s">
+      <default>''</default>
+      <summary>Internal: saved autoconfig-url before enabling Tor</summary>
     </key>
 
     <key name="default-exit-country" type="s">
