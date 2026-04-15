@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.tor-ext"
+          path="/org/gnome/shell/extensions/tor-ext/">
+
+    <key name="control-port" type="i">
+      <default>9051</default>
+      <range min="1" max="65535"/>
+      <summary>Tor ControlPort</summary>
+      <description>TCP port on 127.0.0.1 where tor's ControlPort listens.</description>
+    </key>
+
+    <key name="cookie-path" type="s">
+      <default>'/run/tor/control.authcookie'</default>
+      <summary>Cookie authentication file</summary>
+      <description>Path to tor's control auth cookie (32 raw bytes).</description>
+    </key>
+
+    <key name="control-password" type="s">
+      <default>''</default>
+      <summary>Fallback control password</summary>
+      <description>Cleartext password used if cookie auth is unavailable. Matches HashedControlPassword in torrc.</description>
+    </key>
+
+    <key name="manage-system-proxy" type="b">
+      <default>true</default>
+      <summary>Manage GNOME system SOCKS proxy</summary>
+      <description>When enabled, set org.gnome.system.proxy to manual SOCKS 127.0.0.1:9050 while Tor is on, and revert when Tor is off.</description>
+    </key>
+
+    <key name="default-exit-country" type="s">
+      <default>''</default>
+      <summary>Exit country (ISO 3166 alpha-2, lowercase)</summary>
+      <description>Two-letter country code for ExitNodes. Empty means any country.</description>
+    </key>
+
+    <key name="use-bridges" type="b">
+      <default>false</default>
+      <summary>Use obfs4 bridges</summary>
+    </key>
+
+    <key name="bridge-lines" type="as">
+      <default>[]</default>
+      <summary>obfs4 bridge lines</summary>
+      <description>One bridge line per entry, e.g. "obfs4 1.2.3.4:443 FINGERPRINT cert=... iat-mode=0".</description>
+    </key>
+
+    <key name="obfs4-binary" type="s">
+      <default>'/usr/bin/obfs4proxy'</default>
+      <summary>Path to obfs4proxy binary</summary>
+    </key>
+
+    <key name="socks-port" type="i">
+      <default>9050</default>
+      <range min="1" max="65535"/>
+      <summary>Tor SOCKS port</summary>
+    </key>
+
+    <key name="saved-proxy-mode" type="s">
+      <default>''</default>
+      <summary>Internal: saved proxy mode before enabling Tor</summary>
+    </key>
+
+    <key name="saved-socks-host" type="s">
+      <default>''</default>
+      <summary>Internal: saved SOCKS host before enabling Tor</summary>
+    </key>
+
+    <key name="saved-socks-port" type="i">
+      <default>0</default>
+      <summary>Internal: saved SOCKS port before enabling Tor</summary>
+    </key>
+
+  </schema>
+</schemalist>

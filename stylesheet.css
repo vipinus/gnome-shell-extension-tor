@@ -1,0 +1,21 @@
+.tor-ext-status-on {
+    color: #a8e6a1;
+}
+
+.tor-ext-status-connecting {
+    color: #f4c542;
+}
+
+.tor-ext-status-off {
+    opacity: 0.6;
+}
+
+.tor-ext-error {
+    color: #f28b82;
+}
+
+.tor-ext-circuit-hop {
+    padding: 2px 12px;
+    font-family: monospace;
+    font-size: 0.9em;
+}

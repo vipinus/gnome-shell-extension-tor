@@ -1,0 +1,9 @@
+{
+  "uuid": "tor-ext@fabric.soul7.gmail.com",
+  "name": "Tor",
+  "description": "Control the Tor network from Quick Settings: toggle on/off, pick exit country, live bootstrap progress, New Identity, obfs4 bridges, and circuit viewer. Talks to tor's ControlPort directly and gates systemctl start/stop through polkit.",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.tor-ext",
+  "url": "https://github.com/vipinus/gnome-shell-extension-tor",
+  "version-name": "0.1.0"
+}

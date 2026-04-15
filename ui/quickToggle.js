@@ -1,0 +1,400 @@
+// quickToggle.js — Quick Settings tile for tor-ext.
+//
+// Phases 5–8:
+//   - on/off toggle with polkit-gated systemctl start/stop (phase 5)
+//   - exit-country picker via SETCONF ExitNodes (phase 6)
+//   - live bootstrap % subtitle via STATUS_CLIENT events (phase 7)
+//   - New Identity button via SIGNAL NEWNYM + CLEARDNSCACHE (phase 8)
+
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+
+import {TorController, ControllerState} from '../lib/torController.js';
+import {TorService} from '../lib/torService.js';
+import {ProxyManager} from '../lib/proxyManager.js';
+import {COUNTRIES, countryName} from '../lib/countries.js';
+import {pickPrimaryCircuit} from '../lib/circuitParser.js';
+
+const ICON_ON  = 'network-vpn-symbolic';
+const ICON_OFF = 'network-vpn-disabled-symbolic';
+// Custom tor-symbolic.svg is bundled in icons/; the default VPN icon is used
+// as a fallback when the shell's icon theme doesn't pick up extension icons.
+
+const TorToggle = GObject.registerClass(
+class TorToggle extends QuickSettings.QuickMenuToggle {
+    _init(extension) {
+        super._init({
+            title: 'Tor',
+            iconName: ICON_OFF,
+            toggleMode: true,
+        });
+        this._ext = extension;
+        this._settings = extension.getSettings();
+
+        this._service    = new TorService();
+        this._controller = null;
+        this._proxy      = new ProxyManager(this._settings);
+        this._busy       = false;
+        this._bootstrapPct = 0;
+
+        this.menu.setHeader(ICON_ON, 'Tor', this._statusSubtitle());
+
+        this._buildMenu();
+
+        this._clickedId = this.connect('clicked', () => this._onClicked());
+        this._activeChangedId = this._service.connect('active-changed',
+            (_s, state) => this._onServiceState(state));
+
+        // Sync initial state
+        this._service.getActiveState()
+            .then(s => this._reflectInitialState(s))
+            .catch(() => this._setSubtitle('Off'));
+    }
+
+    _buildMenu() {
+        // Row 1 — New Identity
+        this._newIdentityItem = new PopupMenu.PopupMenuItem('New Identity');
+        this._newIdentityItem.connect('activate', () => this._onNewIdentity());
+        this.menu.addMenuItem(this._newIdentityItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Row 2 — Exit country submenu
+        this._exitItem = new PopupMenu.PopupSubMenuMenuItem('Exit country');
+        this.menu.addMenuItem(this._exitItem);
+        this._countryItems = new Map();  // code → PopupMenuItem
+        for (const c of COUNTRIES) {
+            const item = new PopupMenu.PopupMenuItem(c.name);
+            item.connect('activate', () => this._onCountrySelected(c.code));
+            this._exitItem.menu.addMenuItem(item);
+            this._countryItems.set(c.code, item);
+        }
+        this._refreshCountryChecks();
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Row 3 — Circuit viewer (populated lazily when submenu opens)
+        this._circuitItem = new PopupMenu.PopupMenuItem('Circuit: —', {reactive: false});
+        this._circuitItem.can_focus = false;
+        this.menu.addMenuItem(this._circuitItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Row 4 — Settings
+        const prefsItem = new PopupMenu.PopupMenuItem('Preferences…');
+        prefsItem.connect('activate', () => this._ext.openPreferences());
+        this.menu.addMenuItem(prefsItem);
+
+        this._menuOpenId = this.menu.connect('open-state-changed', (_m, open) => {
+            if (open && this.checked && this._controller?.isReady)
+                this._refreshCircuitView();
+        });
+    }
+
+    _refreshCountryChecks() {
+        const current = (this._settings.get_string('default-exit-country') || '').toLowerCase();
+        for (const [code, item] of this._countryItems) {
+            item.setOrnament(code === current
+                ? PopupMenu.Ornament.CHECK
+                : PopupMenu.Ornament.NONE);
+        }
+        this._exitItem.label.text = `Exit: ${countryName(current)}`;
+    }
+
+    _statusSubtitle() {
+        if (this._busy && this._bootstrapPct > 0 && this._bootstrapPct < 100)
+            return `Connecting… ${this._bootstrapPct}%`;
+        if (!this.checked) return 'Off';
+        const country = this._settings.get_string('default-exit-country');
+        return country ? `On · Exit: ${countryName(country)}` : 'On';
+    }
+
+    _setSubtitle(s) {
+        this.subtitle = s;
+        if (this.menu.setHeader) this.menu.setHeader(ICON_ON, 'Tor', s);
+    }
+
+    _reflectInitialState(state) {
+        if (state === 'active') {
+            this.checked = true;
+            this.iconName = ICON_ON;
+            this._setSubtitle(this._statusSubtitle());
+            this._attachController()
+                .then(() => this._applyCurrentCountry())
+                .catch(() => { /* non-fatal */ });
+        } else {
+            this.checked = false;
+            this.iconName = ICON_OFF;
+            this._setSubtitle('Off');
+        }
+    }
+
+    async _onClicked() {
+        if (this._busy) return;
+        this._busy = true;
+        try {
+            if (this.checked) await this._turnOn();
+            else              await this._turnOff();
+        } catch (e) {
+            console.warn(`[tor-ext] toggle failed: ${e.message}`);
+            Main.notify('Tor', `Failed: ${e.message}`);
+            this.checked = !this.checked;
+            this.iconName = this.checked ? ICON_ON : ICON_OFF;
+            this._setSubtitle(this._statusSubtitle());
+        } finally {
+            this._busy = false;
+        }
+    }
+
+    async _turnOn() {
+        this._bootstrapPct = 0;
+        this._setSubtitle('Starting…');
+        this.iconName = ICON_ON;
+
+        const active = await this._service.isActive();
+        if (!active) {
+            await this._service.start();
+            await this._service.waitForState('active', 15000);
+        }
+        await this._attachController();
+        await this._applyBridges();
+        await this._applyCurrentCountry();
+
+        if (this._settings.get_boolean('manage-system-proxy'))
+            this._proxy.enableSocks();
+
+        this._setSubtitle(this._statusSubtitle());
+    }
+
+    async _turnOff() {
+        this._setSubtitle('Stopping…');
+
+        if (this._settings.get_boolean('manage-system-proxy'))
+            this._proxy.revert();
+
+        if (this._controller) {
+            try { await this._controller.quit(); } catch (_) {}
+            this._detachController();
+        }
+
+        await this._service.stop();
+        this.iconName = ICON_OFF;
+        this._setSubtitle('Off');
+    }
+
+    async _attachController() {
+        if (this._controller && this._controller.isReady) return;
+        const c = new TorController({
+            port:       this._settings.get_int('control-port'),
+            cookiePath: this._settings.get_string('cookie-path'),
+            password:   this._settings.get_string('control-password'),
+        });
+        const start = GLib.get_monotonic_time();
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+            try { await c.connectAndAuth(); break; }
+            catch (e) {
+                if ((GLib.get_monotonic_time() - start) / 1000 > 10000) {
+                    // Typical root causes: ControlPort not configured in torrc,
+                    // or user not in tor's unix group so the auth cookie can't
+                    // be read. Surface an actionable hint.
+                    throw new Error(`${e.message}. Run scripts/setup-torrc.sh (one-time setup) and log out/in.`);
+                }
+                await new Promise(r => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => { r(); return GLib.SOURCE_REMOVE; }));
+            }
+        }
+        this._controller = c;
+
+        // Subscribe to events for live bootstrap subtitle
+        this._bootstrapSigId = c.connect('bootstrap', (_o, pct, _tag, _summary) => {
+            this._bootstrapPct = pct;
+            if (pct < 100 && this.checked)
+                this._setSubtitle(`Connecting… ${pct}%`);
+            else if (pct >= 100 && this.checked)
+                this._setSubtitle(this._statusSubtitle());
+        });
+        this._disconnectedSigId = c.connect('disconnected', () => {
+            this._detachController();
+        });
+        this._circuitSigId = c.connect('circuit-event', () => {
+            if (this.menu.isOpen && this.checked)
+                this._refreshCircuitView();
+        });
+        try {
+            await c.setEvents(['STATUS_CLIENT', 'CIRC']);
+        } catch (e) {
+            console.warn(`[tor-ext] SETEVENTS failed: ${e.message}`);
+        }
+    }
+
+    async _refreshCircuitView() {
+        if (!this._controller?.isReady) {
+            this._circuitItem.label.text = 'Circuit: —';
+            return;
+        }
+        try {
+            const circs = await this._controller.getCircuits();
+            const c = pickPrimaryCircuit(circs);
+            if (!c) {
+                this._circuitItem.label.text = 'Circuit: (building…)';
+                return;
+            }
+            const ccs = await Promise.all(c.hops.map(async h => {
+                const ip = await this._controller.getRelayIP(h.fp);
+                const cc = await this._controller.getIPCountry(ip);
+                return cc || '??';
+            }));
+            this._circuitItem.label.text = `Circuit: ${ccs.join(' → ')}`;
+        } catch (e) {
+            this._circuitItem.label.text = `Circuit: (${e.message.slice(0, 40)})`;
+        }
+    }
+
+    _detachController() {
+        if (!this._controller) return;
+        if (this._bootstrapSigId) {
+            try { this._controller.disconnect(this._bootstrapSigId); } catch (_) {}
+            this._bootstrapSigId = 0;
+        }
+        if (this._disconnectedSigId) {
+            try { this._controller.disconnect(this._disconnectedSigId); } catch (_) {}
+            this._disconnectedSigId = 0;
+        }
+        if (this._circuitSigId) {
+            try { this._controller.disconnect(this._circuitSigId); } catch (_) {}
+            this._circuitSigId = 0;
+        }
+        try { this._controller.close(); } catch (_) {}
+        this._controller = null;
+    }
+
+    async _applyBridges() {
+        if (!this._controller?.isReady) return;
+        const useBridges = this._settings.get_boolean('use-bridges');
+        if (!useBridges) {
+            try {
+                await this._controller.resetConf(['UseBridges', 'Bridge', 'ClientTransportPlugin']);
+            } catch (_) {}
+            return;
+        }
+        const lines = this._settings.get_strv('bridge-lines')
+            .map(l => l.trim()).filter(Boolean);
+        if (!lines.length) {
+            Main.notify('Tor', 'Bridges enabled but no bridge lines configured — disable in preferences');
+            throw new Error('no bridge lines');
+        }
+        const obfs4 = this._settings.get_string('obfs4-binary');
+        if (!Gio.File.new_for_path(obfs4).query_exists(null)) {
+            Main.notify('Tor', `obfs4proxy not found at ${obfs4} — install it (sudo apt install obfs4proxy)`);
+            throw new Error('obfs4proxy missing');
+        }
+        await this._controller.setConf({
+            UseBridges: '1',
+            ClientTransportPlugin: `obfs4 exec ${obfs4}`,
+            Bridge: lines,
+        });
+    }
+
+    async _applyCurrentCountry() {
+        if (!this._controller?.isReady) return;
+        const code = (this._settings.get_string('default-exit-country') || '').toLowerCase();
+        try {
+            if (code)
+                await this._controller.setConf({ExitNodes: `{${code}}`, StrictNodes: '1'});
+            else
+                await this._controller.resetConf(['ExitNodes', 'StrictNodes']);
+        } catch (e) {
+            console.warn(`[tor-ext] setConf ExitNodes failed: ${e.message}`);
+            Main.notify('Tor', `Could not set exit country: ${e.message}`);
+        }
+    }
+
+    async _onCountrySelected(code) {
+        this._settings.set_string('default-exit-country', code || '');
+        this._refreshCountryChecks();
+        if (this.checked && this._controller?.isReady) {
+            await this._applyCurrentCountry();
+            // Force fresh circuit so subsequent traffic uses the new exit
+            try { await this._controller.signal('NEWNYM'); } catch (_) {}
+            this._setSubtitle(this._statusSubtitle());
+            Main.notify('Tor', code
+                ? `Exit set to ${countryName(code)}`
+                : 'Exit country cleared');
+        }
+    }
+
+    async _onNewIdentity() {
+        if (!this._controller?.isReady) {
+            Main.notify('Tor', 'Not connected');
+            return;
+        }
+        try {
+            await this._controller.signal('NEWNYM');
+            await this._controller.signal('CLEARDNSCACHE');
+            Main.notify('Tor', 'New identity — circuits rebuilt');
+        } catch (e) {
+            Main.notify('Tor', `New Identity failed: ${e.message}`);
+        }
+    }
+
+    _onServiceState(state) {
+        if (this._busy) return;
+        if (state === 'inactive' && this.checked) {
+            this.checked = false;
+            this.iconName = ICON_OFF;
+            this._setSubtitle('Off');
+            this._detachController();
+        } else if (state === 'active' && !this.checked) {
+            this.checked = true;
+            this.iconName = ICON_ON;
+            this._setSubtitle(this._statusSubtitle());
+        }
+    }
+
+    destroy() {
+        if (this._clickedId) { this.disconnect(this._clickedId); this._clickedId = 0; }
+        if (this._activeChangedId) {
+            this._service.disconnect(this._activeChangedId);
+            this._activeChangedId = 0;
+        }
+        this._detachController();
+        this._service?.destroy();
+        super.destroy();
+    }
+});
+
+export const TorIndicator = GObject.registerClass(
+class TorIndicator extends QuickSettings.SystemIndicator {
+    _init(extension) {
+        super._init();
+        this._topIcon = this._addIndicator();
+        this._topIcon.iconName = ICON_ON;
+        this._topIcon.visible = false;
+
+        this._toggle = new TorToggle(extension);
+        this.quickSettingsItems.push(this._toggle);
+
+        // Phase 11: top-bar icon tracks the toggle's checked state.
+        this._syncIndicator();
+        this._checkedSigId = this._toggle.connect('notify::checked',
+            () => this._syncIndicator());
+    }
+
+    _syncIndicator() {
+        this._topIcon.visible = this._toggle.checked;
+    }
+
+    destroy() {
+        if (this._checkedSigId) {
+            try { this._toggle.disconnect(this._checkedSigId); } catch (_) {}
+            this._checkedSigId = 0;
+        }
+        this.quickSettingsItems.forEach(i => i.destroy());
+        this.quickSettingsItems = [];
+        super.destroy();
+    }
+});
