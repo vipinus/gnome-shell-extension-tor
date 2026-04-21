@@ -193,10 +193,20 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         } catch (e) {
             console.warn(`[tor-ext] toggle failed: ${e.message}`);
             Main.notify('Tor', `Failed: ${e.message}`);
-            this.checked = !this.checked;
-            this.iconName = this.checked ? ICON_ON : ICON_OFF;
-            this._setSubtitle(this._statusSubtitle());
         } finally {
+            // Reconcile UI with real unit state before releasing the busy
+            // lock. Prevents the "tile says ON but tor is OFF" drift that
+            // happens when the user double-clicks — QuickMenuToggle auto-
+            // flips `checked` on every click before our handler runs, so
+            // rapid taps can leave the property out of sync with reality.
+            try {
+                const active = await this._service.isActive();
+                if (this.checked !== active) {
+                    this.checked = active;
+                    this.iconName = active ? ICON_ON : ICON_OFF;
+                    this._setSubtitle(this._statusSubtitle());
+                }
+            } catch (_) { /* service unreachable → leave UI as-is */ }
             this._busy = false;
         }
     }
