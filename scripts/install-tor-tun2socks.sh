@@ -124,6 +124,7 @@ fi
 # the tile can flip to Bridges mode without a second round-trip.
 pkg_install obfs4proxy       optional obfs4proxy       obfs4     obfs4proxy       obfs4
 pkg_install snowflake-client optional snowflake-client snowflake snowflake        ''
+pkg_install webtunnel-client optional webtunnel        webtunnel webtunnel-client ''
 
 IP_BIN=$(command -v ip)
 echo ">> ip binary:       $IP_BIN"
