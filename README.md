@@ -39,6 +39,33 @@ The extension runs its own tor instance via `systemd --user` (`~/.config/systemd
 
 If you already have the system `tor.service` package installed and running, this extension does not interact with it and does not conflict (different ports).
 
+### Optional: transparent proxy via tun2socks
+
+If you want **every** TCP connection on the machine (not just apps you've configured with a SOCKS5 endpoint) routed through Tor, enable transparent-proxy mode:
+
+```bash
+sudo bash scripts/install-tun2socks.sh   # one-time only, asks for sudo once
+gsettings set org.gnome.shell.extensions.tor-ext use-tun2socks true
+# or toggle it in the prefs window: Tor tile → Preferences… → Transparent proxy
+```
+
+What the installer does:
+
+- Creates a `_tor-ext` system user and adds you to the `_tor-ext` group (so you can read the tor control cookie).
+- Installs `/etc/systemd/system/tor-ext.service` (system-scope tor running as `_tor-ext`) and `/etc/systemd/system/tor-ext-tun2socks.service` (tun2socks running as `_tor-ext` with `CAP_NET_ADMIN` + `CAP_NET_RAW`).
+- Downloads xjasonlyu/tun2socks to `/usr/local/bin/tun2socks` if not already present.
+- Installs a polkit rule that gives active local users **passwordless** start/stop on those two units — so after this one-time setup, the tile click is instant.
+
+How it routes:
+
+- Policy rule: `ip rule add uidrange $_tor-ext_UID` looks up `main` — so tor's + tun2socks's own outbound traffic uses the real default route.
+- Everything else looks up table `100`, whose default route is `dev tun-tor`.
+- tun2socks grabs TCP from the TUN, forwards to `127.0.0.1:9150` (tor SOCKS5).
+- DNS (UDP/TCP 53) hitting the TUN is NAT-redirected to tor's DNSPort on `127.0.0.1:5353`.
+- IPv6 default route is temporarily torn down while the tunnel is up (no IPv6 Tor exits → leak prevention).
+
+Log out and back in after the installer runs so the `_tor-ext` group membership takes effect on your login session.
+
 ## Preferences
 
 Right-click the Tor tile → **Preferences…** — or:

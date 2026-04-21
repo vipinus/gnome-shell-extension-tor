@@ -1,0 +1,53 @@
+[Unit]
+Description=tor-ext transparent proxy (tun2socks -> Tor SOCKS5)
+Documentation=https://github.com/vipinus/gnome-shell-extension-tor
+Requires=tor-ext.service
+After=tor-ext.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=_tor-ext
+Group=_tor-ext
+
+# CAP_NET_ADMIN: create TUN, add routes / rules.
+# CAP_NET_RAW:   raw packet ops needed by some tun2socks implementations.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+# Gives us /run/tor-ext owned by _tor-ext:_tor-ext for the routing helper to
+# stash IPv6-default state across up/down, under ProtectSystem=strict.
+RuntimeDirectory=tor-ext
+RuntimeDirectoryMode=0755
+
+Environment=TUN_DEV=@TUN_DEV@
+Environment=TUN_ADDR=@TUN_ADDR@
+Environment=SOCKS_PORT=@SOCKS_PORT@
+Environment=DNS_PORT=@DNS_PORT@
+
+# Pre-create the TUN owned by _tor-ext. tun2socks opens /dev/net/tun as that
+# user; explicit `user _tor-ext` here makes the device readable/writable by
+# us without needing CAP_NET_ADMIN inside the tun2socks process (cap is kept
+# in the service for the addr/link/route calls below).
+ExecStartPre=@IP_BIN@ tuntap add dev ${TUN_DEV} mode tun user _tor-ext
+ExecStartPre=@IP_BIN@ addr add ${TUN_ADDR} dev ${TUN_DEV}
+ExecStartPre=@IP_BIN@ link set dev ${TUN_DEV} up mtu 1500
+
+# xjasonlyu/tun2socks CLI. systemd resolves the executable path BEFORE env-var
+# substitution, so the path must be baked in by the installer (not ${TUN2SOCKS}).
+ExecStart=@TUN2SOCKS@ -device ${TUN_DEV} -proxy socks5://127.0.0.1:${SOCKS_PORT} -loglevel warning
+
+# Policy routing + DNS redirect.
+ExecStartPost=/usr/local/libexec/tor-ext/tor-ext-routing up
+ExecStopPost=/usr/local/libexec/tor-ext/tor-ext-routing down
+ExecStopPost=-@IP_BIN@ tuntap del dev ${TUN_DEV} mode tun
+
+Restart=on-failure
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

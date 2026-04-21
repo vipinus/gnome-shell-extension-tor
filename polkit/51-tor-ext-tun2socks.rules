@@ -1,0 +1,29 @@
+// 51-tor-ext-tun2socks.rules — allow active local users to start/stop the
+// tor-ext system units (transparent-proxy mode) without a password prompt.
+//
+// Scope is limited to the exact unit names we install; other units stay under
+// default polkit policy. Use YES (not AUTH_ADMIN_KEEP) because a transparent-
+// proxy toggle in Quick Settings is expected to be instantaneous, and the
+// one-time privileged install (scripts/install-tun2socks.sh) has already
+// established the user's intent.
+//
+// Install to: /etc/polkit-1/rules.d/51-tor-ext-tun2socks.rules  (root:root, 0644)
+
+polkit.addRule(function(action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units") return;
+    if (!subject.active || !subject.local) return;
+
+    var unit = action.lookup("unit") || "";
+    if (unit !== "tor-ext.service" && unit !== "tor-ext-tun2socks.service") return;
+
+    var verb = action.lookup("verb") || "";
+    switch (verb) {
+        case "start":
+        case "stop":
+        case "restart":
+        case "reload":
+        case "try-restart":
+        case "reload-or-restart":
+            return polkit.Result.YES;
+    }
+});

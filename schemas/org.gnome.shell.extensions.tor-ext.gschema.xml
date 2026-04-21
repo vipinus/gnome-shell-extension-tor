@@ -93,5 +93,39 @@
       <summary>Internal: whether saved-use-same-proxy contains a captured value</summary>
     </key>
 
+    <key name="use-tun2socks" type="b">
+      <default>false</default>
+      <summary>Route all traffic through Tor via tun2socks (transparent proxy)</summary>
+      <description>When enabled, ALL system TCP traffic is pushed through a TUN device that tun2socks forwards to tor's SOCKS5 port. DNS is redirected to tor's DNSPort. Requires one-time privileged setup (scripts/install-tun2socks.sh) that creates a dedicated _tor-ext system user and installs system units + a polkit rule so the tile stays passwordless at runtime. Enabling this also switches tor itself from the user-mode unit to the system-mode unit so its own outbound traffic can be exempted by uid.</description>
+    </key>
+
+    <key name="tun2socks-binary" type="s">
+      <default>'/usr/local/bin/tun2socks'</default>
+      <summary>Path to the tun2socks binary</summary>
+      <description>xjasonlyu/tun2socks-compatible CLI. Installed by scripts/install-tun2socks.sh.</description>
+    </key>
+
+    <key name="tun-device" type="s">
+      <default>'tun-tor'</default>
+      <summary>TUN interface name</summary>
+    </key>
+
+    <key name="tun-address" type="s">
+      <default>'10.66.66.1/24'</default>
+      <summary>IPv4 address/prefix assigned to the TUN interface</summary>
+    </key>
+
+    <key name="tor-dns-port" type="i">
+      <default>5353</default>
+      <range min="1" max="65535"/>
+      <summary>Tor DNSPort (used by tun2socks DNS redirection)</summary>
+    </key>
+
+    <key name="tor-system-cookie-path" type="s">
+      <default>'/var/lib/tor-ext/control_auth_cookie'</default>
+      <summary>Cookie auth path for the system-mode tor unit</summary>
+      <description>Used when use-tun2socks is on. The _tor-ext group is group-readable; the installer adds the login user to that group.</description>
+    </key>
+
   </schema>
 </schemalist>

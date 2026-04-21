@@ -16,6 +16,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {TorController, ControllerState} from '../lib/torController.js';
 import {TorService} from '../lib/torService.js';
+import {Tun2SocksService} from '../lib/tun2socksService.js';
 import {ProxyManager} from '../lib/proxyManager.js';
 import {COUNTRIES, countryName} from '../lib/countries.js';
 import {pickPrimaryCircuit} from '../lib/circuitParser.js';
@@ -36,7 +37,9 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._ext = extension;
         this._settings = extension.getSettings();
 
-        this._service    = new TorService();
+        this._systemMode = this._settings.get_boolean('use-tun2socks');
+        this._service    = new TorService({systemMode: this._systemMode});
+        this._tun2socks  = this._systemMode ? new Tun2SocksService() : null;
         this._controller = null;
         this._proxy      = new ProxyManager(this._settings);
         this._busy       = false;
@@ -50,10 +53,39 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._activeChangedId = this._service.connect('active-changed',
             (_s, state) => this._onServiceState(state));
 
+        // React to the user flipping use-tun2socks in prefs: rebuild the
+        // service handles so the next toggle talks to the right bus/unit.
+        // We don't attempt live migration — if tor was already running, the
+        // user needs to click the tile off and on again.
+        this._tun2socksChangedId = this._settings.connect(
+            'changed::use-tun2socks', () => this._onModeSettingChanged());
+
         // Sync initial state
         this._service.getActiveState()
             .then(s => this._reflectInitialState(s))
             .catch(() => this._setSubtitle('Off'));
+    }
+
+    _onModeSettingChanged() {
+        const want = this._settings.get_boolean('use-tun2socks');
+        if (want === this._systemMode) return;
+        if (this.checked) {
+            Main.notify('Tor',
+                'Transparent-proxy mode changed. Toggle Tor off and on to apply.');
+            return;
+        }
+        // Safe to rebuild — tor is off.
+        if (this._activeChangedId) {
+            try { this._service.disconnect(this._activeChangedId); } catch (_) {}
+            this._activeChangedId = 0;
+        }
+        this._service?.destroy();
+        this._tun2socks?.destroy();
+        this._systemMode = want;
+        this._service = new TorService({systemMode: want});
+        this._tun2socks = want ? new Tun2SocksService() : null;
+        this._activeChangedId = this._service.connect('active-changed',
+            (_s, state) => this._onServiceState(state));
     }
 
     _buildMenu() {
@@ -118,7 +150,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             return `Connecting… ${this._bootstrapPct}%`;
         if (!this.checked) return 'Off';
         const country = this._settings.get_string('default-exit-country');
-        return country ? `On · Exit: ${countryName(country)}` : 'On';
+        const base = country ? `On · Exit: ${countryName(country)}` : 'On';
+        return this._systemMode ? `${base} · Transparent` : base;
     }
 
     _setSubtitle(s) {
@@ -163,6 +196,14 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._setSubtitle('Starting…');
         this.iconName = ICON_ON;
 
+        // Pre-flight: system-mode requires the installer to have run.
+        if (this._systemMode && this._tun2socks) {
+            const installed = await this._tun2socks.isInstalled();
+            if (!installed) {
+                throw new Error('transparent-proxy not installed — run scripts/install-tun2socks.sh');
+            }
+        }
+
         const active = await this._service.isActive();
         if (!active) {
             await this._service.start();
@@ -172,7 +213,18 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         await this._applyBridges();
         await this._applyCurrentCountry();
 
-        if (this._settings.get_boolean('manage-system-proxy')) {
+        if (this._systemMode && this._tun2socks) {
+            // Wait for bootstrap ≥ 100% before flipping routes — otherwise
+            // tun2socks will forward to a SOCKS that can't reach the network
+            // yet and all the user sees is dead tabs.
+            this._setSubtitle('Bootstrapping Tor…');
+            await this._waitForBootstrap(60000);
+
+            this._setSubtitle('Enabling transparent proxy…');
+            await this._tun2socks.start();
+            await this._tun2socks.waitForState('active', 15000);
+            Main.notify('Tor', 'Transparent proxy active — all TCP traffic routed through Tor.');
+        } else if (this._settings.get_boolean('manage-system-proxy')) {
             try {
                 this._proxy.enableSocks();
             } catch (e) {
@@ -189,8 +241,20 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     async _turnOff() {
         this._setSubtitle('Stopping…');
 
-        if (this._settings.get_boolean('manage-system-proxy'))
+        // Order matters: pull the TUN routing down BEFORE tor, so apps don't
+        // spin against a dead SOCKS endpoint in the brief window between.
+        if (this._systemMode && this._tun2socks) {
+            try {
+                if (await this._tun2socks.isActive()) {
+                    await this._tun2socks.stop();
+                    await this._tun2socks.waitForState('inactive', 10000);
+                }
+            } catch (e) {
+                console.warn(`[tor-ext] tun2socks stop failed: ${e.message}`);
+            }
+        } else if (this._settings.get_boolean('manage-system-proxy')) {
             this._proxy.revert();
+        }
 
         if (this._controller) {
             try { await this._controller.quit(); } catch (_) {}
@@ -202,11 +266,23 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._setSubtitle('Off');
     }
 
+    async _waitForBootstrap(timeoutMs) {
+        if (this._bootstrapPct >= 100) return;
+        const deadline = GLib.get_monotonic_time() / 1000 + timeoutMs;
+        while (this._bootstrapPct < 100) {
+            if (GLib.get_monotonic_time() / 1000 > deadline)
+                throw new Error('Tor bootstrap timed out');
+            await new Promise(r => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300,
+                () => { r(); return GLib.SOURCE_REMOVE; }));
+        }
+    }
+
     async _attachController() {
         if (this._controller && this._controller.isReady) return;
+        const cookieKey = this._systemMode ? 'tor-system-cookie-path' : 'cookie-path';
         const c = new TorController({
             port:       this._settings.get_int('control-port'),
-            cookiePath: this._settings.get_string('cookie-path'),
+            cookiePath: this._settings.get_string(cookieKey),
             password:   this._settings.get_string('control-password'),
         });
         const start = GLib.get_monotonic_time();
@@ -395,8 +471,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             this._service.disconnect(this._activeChangedId);
             this._activeChangedId = 0;
         }
+        if (this._tun2socksChangedId) {
+            try { this._settings.disconnect(this._tun2socksChangedId); } catch (_) {}
+            this._tun2socksChangedId = 0;
+        }
         this._detachController();
         this._service?.destroy();
+        this._tun2socks?.destroy();
         this._proxy?.destroy();
         super.destroy();
     }

@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# tor-ext-routing — bring policy routing + DNS redirect for tun2socks up/down.
+#
+# Invoked by tor-ext-tun2socks.service's ExecStartPost / ExecStopPost.
+# Runs as _tor-ext with AmbientCapabilities=CAP_NET_ADMIN (inherited from unit).
+#
+# Policy:
+#   - Packets owned by the _tor-ext uid bypass the TUN (→ main table, normal
+#     internet). That's tor and tun2socks itself — they MUST reach real relays.
+#   - Everything else goes through table 100, whose only entry is `default dev
+#     $TUN_DEV`. tun2socks picks packets off the TUN and forwards to tor's
+#     SOCKS5.
+#   - DNS (UDP/53) hitting the TUN is redirected to tor's DNSPort. tor's
+#     DNSPort speaks both UDP and TCP, so app compatibility stays intact.
+#
+# v1 is IPv4-only on purpose: IPv6 default route is torn down while the tunnel
+# is up to avoid a silent leak path, and restored on `down`.
+set -eu
+
+TUN_DEV=${TUN_DEV:-tun-tor}
+DNS_PORT=${DNS_PORT:-5353}
+TABLE=100
+PRIO_EXEMPT=100
+PRIO_TUN=200
+TOR_UID=$(id -u _tor-ext)
+LOG_TAG="tor-ext/routing"
+
+log() { logger -t "$LOG_TAG" -- "$*"; }
+
+exempt_rule_present() {
+    ip rule show priority "$PRIO_EXEMPT" | grep -qE "uidrange ${TOR_UID}-${TOR_UID} .*lookup main"
+}
+tun_rule_present() {
+    ip rule show priority "$PRIO_TUN" | grep -qE "lookup ${TABLE}\b"
+}
+
+up() {
+    # Policy rules — exempt tor's uid first, then route everything else via TUN.
+    exempt_rule_present || \
+        ip rule add uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT"
+    tun_rule_present || \
+        ip rule add lookup "$TABLE" priority "$PRIO_TUN"
+
+    # Custom table: default via TUN.
+    ip route replace default dev "$TUN_DEV" table "$TABLE"
+
+    # Loose rp_filter on TUN so DNS redirect responses don't get dropped.
+    sysctl -q -w "net.ipv4.conf.${TUN_DEV}.rp_filter=2" || true
+
+    # DNS redirect: UDP+TCP 53 arriving on TUN → tor DNSPort on loopback.
+    # Use nft if available, fall back to iptables-nft.
+    if command -v nft >/dev/null 2>&1; then
+        nft -f - <<NFT
+table inet tor-ext
+flush table inet tor-ext
+table inet tor-ext {
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname "${TUN_DEV}" udp dport 53 dnat ip to 127.0.0.1:${DNS_PORT}
+        iifname "${TUN_DEV}" tcp dport 53 dnat ip to 127.0.0.1:${DNS_PORT}
+    }
+    chain output {
+        type route hook output priority 0; policy accept;
+    }
+}
+NFT
+    else
+        iptables -t nat -C PREROUTING -i "$TUN_DEV" -p udp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}" 2>/dev/null || \
+        iptables -t nat -A PREROUTING -i "$TUN_DEV" -p udp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}"
+        iptables -t nat -C PREROUTING -i "$TUN_DEV" -p tcp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}" 2>/dev/null || \
+        iptables -t nat -A PREROUTING -i "$TUN_DEV" -p tcp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}"
+    fi
+
+    # IPv6 leak-prevention. Merely flushing the default route is NOT enough:
+    #   (1) an on-link /64 (SLAAC) reaches any address in that prefix with no
+    #       default route needed, and
+    #   (2) Router Advertisements restore the default route within seconds.
+    # So we disable the IPv6 stack per-interface while the tunnel is up
+    # (keeping `lo` intact for any local IPv6 apps). Original values are
+    # snapshotted into $STATE_DIR and restored on `down`.
+    STATE_DIR=/run/tor-ext
+    mkdir -p "$STATE_DIR"
+    : > "$STATE_DIR/v6-disable.saved"
+    for ifacedir in /sys/class/net/*; do
+        iface=$(basename "$ifacedir")
+        [[ $iface == lo ]] && continue
+        disable_path=/proc/sys/net/ipv6/conf/${iface}/disable_ipv6
+        [[ -w $disable_path ]] || continue
+        orig=$(cat "$disable_path" 2>/dev/null || echo 0)
+        printf '%s %s\n' "$iface" "$orig" >> "$STATE_DIR/v6-disable.saved"
+        echo 1 > "$disable_path" 2>/dev/null || true
+    done
+
+    log "up: uid ${TOR_UID} exempt, default via ${TUN_DEV}, DNS→127.0.0.1:${DNS_PORT}, IPv6 disabled on non-loopback ifaces"
+}
+
+down() {
+    ip rule del lookup "$TABLE" priority "$PRIO_TUN" 2>/dev/null || true
+    ip rule del uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT" 2>/dev/null || true
+    ip route flush table "$TABLE" 2>/dev/null || true
+
+    if command -v nft >/dev/null 2>&1; then
+        nft delete table inet tor-ext 2>/dev/null || true
+    else
+        iptables -t nat -D PREROUTING -i "$TUN_DEV" -p udp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}" 2>/dev/null || true
+        iptables -t nat -D PREROUTING -i "$TUN_DEV" -p tcp --dport 53 \
+            -j DNAT --to-destination "127.0.0.1:${DNS_PORT}" 2>/dev/null || true
+    fi
+
+    # Restore IPv6 per-interface disable flag. RAs already in-flight will
+    # re-populate the default route and SLAAC addresses on their own.
+    STATE_DIR=/run/tor-ext
+    if [[ -s "$STATE_DIR/v6-disable.saved" ]]; then
+        while read -r iface orig; do
+            [[ -z $iface ]] && continue
+            echo "${orig:-0}" > "/proc/sys/net/ipv6/conf/${iface}/disable_ipv6" 2>/dev/null || true
+        done < "$STATE_DIR/v6-disable.saved"
+        rm -f "$STATE_DIR/v6-disable.saved"
+    fi
+
+    log "down: policy rules + DNS redirect + IPv6 restored"
+}
+
+case "${1:-}" in
+    up)   up ;;
+    down) down ;;
+    *) echo "usage: $0 {up|down}" >&2; exit 2 ;;
+esac
