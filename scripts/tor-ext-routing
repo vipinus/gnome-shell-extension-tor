@@ -15,7 +15,12 @@
 #
 # v1 is IPv4-only on purpose: IPv6 default route is torn down while the tunnel
 # is up to avoid a silent leak path, and restored on `down`.
-set -eu
+#
+# NO `set -e`: each `ip rule add` / `sysctl` is best-effort idempotent (we
+# even pre-check existence). A stray "File exists" used to kill the rest of
+# the script — specifically the IPv6 disable loop — and turn resume-time
+# healing into a silent no-op.
+set -u
 
 TUN_DEV=${TUN_DEV:-tun-tor}
 DNS_PORT=${DNS_PORT:-5353}
@@ -51,17 +56,17 @@ up() {
     # Policy rules — exempt tor's uid first, then let LAN/multicast/link-local
     # bypass the TUN on main table, then finally route everything else via TUN.
     exempt_rule_present || \
-        ip rule add uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT"
+        ip rule add uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT" 2>/dev/null || true
     for net in "${LAN_NETS[@]}"; do
         if ! ip rule show priority "$PRIO_LAN" | grep -qF "to $net lookup main"; then
-            ip rule add to "$net" lookup main priority "$PRIO_LAN"
+            ip rule add to "$net" lookup main priority "$PRIO_LAN" 2>/dev/null || true
         fi
     done
     tun_rule_present || \
-        ip rule add lookup "$TABLE" priority "$PRIO_TUN"
+        ip rule add lookup "$TABLE" priority "$PRIO_TUN" 2>/dev/null || true
 
     # Custom table: default via TUN.
-    ip route replace default dev "$TUN_DEV" table "$TABLE"
+    ip route replace default dev "$TUN_DEV" table "$TABLE" 2>/dev/null || true
 
     # Loose rp_filter on TUN so DNS redirect responses don't get dropped.
     sysctl -q -w "net.ipv4.conf.${TUN_DEV}.rp_filter=2" || true
