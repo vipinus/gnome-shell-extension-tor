@@ -65,6 +65,18 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     _onModeSettingChanged() {
+        // `changed::` signals have proven unreliable in GS50 in at least some
+        // dconf/gjs combos — rely on this as a best-effort nudge, and ALSO
+        // re-sync at click time via _syncModeFromSetting().
+        this._syncModeFromSetting();
+    }
+
+    /**
+     * If use-tun2socks differs from the currently-constructed services, tear
+     * down and rebuild. No-op when tor is running (we refuse to hot-swap
+     * under traffic — user has to toggle off first).
+     */
+    _syncModeFromSetting() {
         const want = this._settings.get_boolean('use-tun2socks');
         if (want === this._systemMode) return;
         if (this.checked) {
@@ -72,7 +84,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 'Transparent-proxy mode changed. Toggle Tor off and on to apply.');
             return;
         }
-        // Safe to rebuild — tor is off.
         if (this._activeChangedId) {
             try { this._service.disconnect(this._activeChangedId); } catch (_) {}
             this._activeChangedId = 0;
@@ -84,6 +95,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._tun2socks = want ? new Tun2SocksService() : null;
         this._activeChangedId = this._service.connect('active-changed',
             (_s, state) => this._onServiceState(state));
+        console.log(`[tor-ext] services rebuilt for systemMode=${want}`);
     }
 
     _buildMenu() {
@@ -193,6 +205,12 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._bootstrapPct = 0;
         this._setSubtitle('Starting…');
         this.iconName = ICON_ON;
+
+        // Belt & suspenders: if the user flipped use-tun2socks while the
+        // extension was running and the listener didn't fire (GSettings
+        // notifications can get dropped), we'd be about to start the wrong
+        // unit. Re-sync now.
+        this._syncModeFromSetting();
 
         // Pre-flight: system-mode requires the installer to have run.
         if (this._systemMode && this._tun2socks) {
