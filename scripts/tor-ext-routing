@@ -74,9 +74,13 @@ up() {
     # DNS redirect: UDP+TCP 53 arriving on TUN → tor DNSPort on loopback.
     # Use nft if available, fall back to iptables-nft.
     if command -v nft >/dev/null 2>&1; then
-        nft -f - <<NFT
+        # Kernel-level filter: drop ALL outbound IPv6 from non-_tor-ext uids.
+        # This survives whatever NetworkManager does to per-iface sysctls
+        # (RAs, link flaps, wifi reassociation, resume) — the per-iface
+        # disable_ipv6 is kept as a best-effort second layer.
+        nft -f - 2>/dev/null <<NFT
 table inet tor-ext
-flush table inet tor-ext
+delete table inet tor-ext
 table inet tor-ext {
     chain prerouting {
         type nat hook prerouting priority dstnat; policy accept;
@@ -84,7 +88,8 @@ table inet tor-ext {
         iifname "${TUN_DEV}" tcp dport 53 dnat ip to 127.0.0.1:${DNS_PORT}
     }
     chain output {
-        type route hook output priority 0; policy accept;
+        type filter hook output priority filter; policy accept;
+        meta nfproto ipv6 meta skuid != ${TOR_UID} drop
     }
 }
 NFT
