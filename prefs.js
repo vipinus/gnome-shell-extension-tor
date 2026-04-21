@@ -11,10 +11,9 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 
 import {COUNTRIES} from './lib/countries.js';
 
-// Public bridges JSON refreshed daily by our own GH Action (see
-// .github/workflows/bridges-refresh.yml + bridges/README.md).
-const PUBLIC_BRIDGES_URL =
-    'https://raw.githubusercontent.com/vipinus/gnome-shell-extension-tor/main/bridges/latest.json';
+// Public bridges JSON URL is now a gsettings key (public-bridges-url) so that
+// the upstream mirror can move (repo → gist, gist → S3, …) without rebuilding
+// the extension. Schema default points at the repo's raw.github URL.
 
 Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
 
@@ -202,6 +201,13 @@ export default class TorExtPreferences extends ExtensionPreferences {
         fetchBtn.connect('clicked', () => {
             this._runFetch(settings, view, statusLabel, fetchBtn);
         });
+        // Keep tooltip in sync with the (possibly overridden) URL.
+        const syncTooltip = () => {
+            fetchBtn.set_tooltip_text(
+                `Download bridges from:\n${settings.get_string('public-bridges-url')}`);
+        };
+        syncTooltip();
+        settings.connect('changed::public-bridges-url', syncTooltip);
 
         settings.connect('changed::bridge-lines', loadIntoBuffer);
         return row;
@@ -242,15 +248,19 @@ export default class TorExtPreferences extends ExtensionPreferences {
     }
 
     async _fetchPublicBridges() {
+        const settings = this.getSettings();
+        const url = settings.get_string('public-bridges-url');
+        if (!url) throw new Error('public-bridges-url is empty');
+
         const session = new Soup.Session({
             user_agent: 'tor-ext-prefs/1.0 (+https://github.com/vipinus/gnome-shell-extension-tor)',
             timeout: 30,
         });
-        const msg = Soup.Message.new('GET', PUBLIC_BRIDGES_URL);
+        const msg = Soup.Message.new('GET', url);
         const bytes = await session.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null);
         const status = msg.get_status();
         if (status !== Soup.Status.OK)
-            throw new Error(`HTTP ${status} from ${PUBLIC_BRIDGES_URL}`);
+            throw new Error(`HTTP ${status} from ${url}`);
         const text = new TextDecoder().decode(bytes.get_data());
         const doc = JSON.parse(text);
         if (!doc || typeof doc !== 'object' || !doc.bridges)

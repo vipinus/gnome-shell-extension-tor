@@ -97,5 +97,11 @@
       <description>Used when use-tun2socks is on. The _tor-ext group is group-readable; the installer adds the login user to that group.</description>
     </key>
 
+    <key name="public-bridges-url" type="s">
+      <default>'https://raw.githubusercontent.com/vipinus/gnome-shell-extension-tor/main/bridges/latest.json'</default>
+      <summary>URL the 'Fetch public bridges' button pulls from</summary>
+      <description>Must serve the JSON schema produced by scripts/harvest-bridges.sh. Defaults to the project repo's raw URL; override to a gist URL or personal mirror if desired.</description>
+    </key>
+
   </schema>
 </schemalist>

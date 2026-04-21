@@ -35,6 +35,38 @@ gsettings --schemadir ~/.local/share/gnome-shell/extensions/tor-ext@fabric.soul7
 gsettings --schemadir ... set org.gnome.shell.extensions.tor-ext use-bridges true
 ```
 
+## Mirror to a public gist (when the main repo goes private)
+
+`raw.githubusercontent.com` returns 404 for private repos, so once you flip the
+visibility the extension's **Fetch public bridges** button breaks. Workaround:
+mirror `bridges/latest.json` to a public gist and point clients there via the
+`public-bridges-url` gsettings key.
+
+One-time owner setup:
+
+1. Create a public gist at <https://gist.github.com/> with **any** placeholder
+   JSON in a file called `latest.json`. Copy the gist ID from the URL
+   (`https://gist.github.com/<user>/<GIST-ID>`).
+2. Create a fine-grained PAT at <https://github.com/settings/tokens?type=beta>
+   with **only** the `gist: write` scope. Do NOT give it any repo permissions.
+3. In the private repo → Settings → Secrets and variables → Actions, add:
+   - `BRIDGES_GIST_ID`     = the gist ID
+   - `BRIDGES_GIST_TOKEN`  = the PAT
+4. Run the workflow once (`gh workflow run bridges-refresh.yml`) to populate
+   the gist with real data.
+5. Flip the extension's default pointer — either change the default in
+   `schemas/org.gnome.shell.extensions.tor-ext.gschema.xml` and ship a new
+   zip, or have users run:
+   ```bash
+   gsettings --schemadir ~/.local/share/gnome-shell/extensions/tor-ext@fabric.soul7.gmail.com/schemas \
+     set org.gnome.shell.extensions.tor-ext public-bridges-url \
+     'https://gist.githubusercontent.com/<user>/<GIST-ID>/raw/latest.json'
+   ```
+6. Now the main repo can go private — the gist remains public.
+
+If either secret is missing the workflow's mirror step is skipped automatically,
+so the same workflow works identically in public-main-repo mode.
+
 ## Why only "public/builtin" bridges, not BridgeDB's private pool
 
 BridgeDB's per-user HTTPS/email distribution is deliberately rate-limited so

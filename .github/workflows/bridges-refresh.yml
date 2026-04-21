@@ -57,3 +57,18 @@ jobs:
           git add bridges/latest.json
           git commit -m "chore(bridges): refresh public bridge list ($(date -u +%Y-%m-%d))"
           git push origin HEAD:main
+
+      # Mirror to a public gist. Runs only when BOTH secrets are set, so the
+      # step is a no-op for anyone cloning the workflow without the gist
+      # plumbing. Gist stays reachable even after the main repo goes private.
+      - name: Mirror to public gist
+        if: steps.harvest.outputs.changed == 'true' && env.GIST_ID != '' && env.GH_GIST_TOKEN != ''
+        env:
+          GIST_ID:       ${{ secrets.BRIDGES_GIST_ID }}
+          GH_GIST_TOKEN: ${{ secrets.BRIDGES_GIST_TOKEN }}
+          GH_TOKEN:      ${{ secrets.BRIDGES_GIST_TOKEN }}
+        run: |
+          # Use a fresh clone so gist's file name is 'latest.json'.
+          cp bridges/latest.json /tmp/latest.json
+          gh gist edit "$GIST_ID" --filename latest.json /tmp/latest.json
+          echo "gist https://gist.github.com/${GIST_ID} updated"
