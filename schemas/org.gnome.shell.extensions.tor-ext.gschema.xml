@@ -22,24 +22,6 @@
       <description>Cleartext password used if cookie auth is unavailable. Matches HashedControlPassword in torrc.</description>
     </key>
 
-    <key name="manage-system-proxy" type="b">
-      <default>false</default>
-      <summary>Manage GNOME system proxy</summary>
-      <description>OFF by default. When enabled, start an embedded PAC server and set org.gnome.system.proxy mode=auto with autoconfig-url pointing at it — this works for libproxy-aware apps (Discord, Evolution) and Firefox with 'Use system proxy settings'. Chrome on recent Linux often ignores it entirely, which is why the default is off and users are pointed at the SOCKS endpoint shown in the tile.</description>
-    </key>
-
-    <key name="pac-port" type="i">
-      <default>9155</default>
-      <range min="1" max="65535"/>
-      <summary>PAC server TCP port</summary>
-      <description>Port on 127.0.0.1 where the embedded proxy-autoconfig server listens.</description>
-    </key>
-
-    <key name="saved-autoconfig-url" type="s">
-      <default>''</default>
-      <summary>Internal: saved autoconfig-url before enabling Tor</summary>
-    </key>
-
     <key name="default-exit-country" type="s">
       <default>''</default>
       <summary>Exit country (ISO 3166 alpha-2, lowercase)</summary>
@@ -66,31 +48,6 @@
       <default>9150</default>
       <range min="1" max="65535"/>
       <summary>Tor SOCKS port</summary>
-    </key>
-
-    <key name="saved-proxy-mode" type="s">
-      <default>''</default>
-      <summary>Internal: saved proxy mode before enabling Tor</summary>
-    </key>
-
-    <key name="saved-socks-host" type="s">
-      <default>''</default>
-      <summary>Internal: saved SOCKS host before enabling Tor</summary>
-    </key>
-
-    <key name="saved-socks-port" type="i">
-      <default>0</default>
-      <summary>Internal: saved SOCKS port before enabling Tor</summary>
-    </key>
-
-    <key name="saved-use-same-proxy" type="b">
-      <default>true</default>
-      <summary>Internal: saved use-same-proxy before enabling Tor</summary>
-    </key>
-
-    <key name="saved-use-same-proxy-set" type="b">
-      <default>false</default>
-      <summary>Internal: whether saved-use-same-proxy contains a captured value</summary>
     </key>
 
     <key name="use-tun2socks" type="b">

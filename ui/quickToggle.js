@@ -17,7 +17,6 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {TorController, ControllerState} from '../lib/torController.js';
 import {TorService} from '../lib/torService.js';
 import {Tun2SocksService} from '../lib/tun2socksService.js';
-import {ProxyManager} from '../lib/proxyManager.js';
 import {COUNTRIES, countryName} from '../lib/countries.js';
 import {pickPrimaryCircuit} from '../lib/circuitParser.js';
 
@@ -41,7 +40,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._service    = new TorService({systemMode: this._systemMode});
         this._tun2socks  = this._systemMode ? new Tun2SocksService() : null;
         this._controller = null;
-        this._proxy      = new ProxyManager(this._settings);
         this._busy       = false;
         this._bootstrapPct = 0;
 
@@ -224,13 +222,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             await this._tun2socks.start();
             await this._tun2socks.waitForState('active', 15000);
             Main.notify('Tor', 'Transparent proxy active — all TCP traffic routed through Tor.');
-        } else if (this._settings.get_boolean('manage-system-proxy')) {
-            try {
-                this._proxy.enableSocks();
-            } catch (e) {
-                console.warn(`[tor-ext] PAC/proxy setup failed: ${e.message}`);
-                Main.notify('Tor', `Proxy auto-config failed: ${e.message}. SOCKS still available at 127.0.0.1:${this._settings.get_int('socks-port')}.`);
-            }
         } else {
             this._notifyOnce();
         }
@@ -252,8 +243,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             } catch (e) {
                 console.warn(`[tor-ext] tun2socks stop failed: ${e.message}`);
             }
-        } else if (this._settings.get_boolean('manage-system-proxy')) {
-            this._proxy.revert();
         }
 
         if (this._controller) {
@@ -478,7 +467,6 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._detachController();
         this._service?.destroy();
         this._tun2socks?.destroy();
-        this._proxy?.destroy();
         super.destroy();
     }
 });

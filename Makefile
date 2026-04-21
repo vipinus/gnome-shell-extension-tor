@@ -52,7 +52,7 @@ polkit-uninstall:
 	sudo systemctl reload polkit 2>/dev/null || true
 
 tun2socks-install:
-	bash scripts/install-tun2socks.sh
+	bash scripts/install-tor-tun2socks.sh
 
 tun2socks-uninstall:
 	@echo "stopping + disabling system units…"

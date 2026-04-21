@@ -44,13 +44,14 @@ If you already have the system `tor.service` package installed and running, this
 If you want **every** TCP connection on the machine (not just apps you've configured with a SOCKS5 endpoint) routed through Tor, enable transparent-proxy mode:
 
 ```bash
-sudo bash scripts/install-tun2socks.sh   # one-time only, asks for sudo once
+sudo bash scripts/install-tor-tun2socks.sh   # one-time only, asks for sudo once
 gsettings set org.gnome.shell.extensions.tor-ext use-tun2socks true
 # or toggle it in the prefs window: Tor tile → Preferences… → Transparent proxy
 ```
 
 What the installer does:
 
+- Installs the `tor` package via apt/dnf/pacman/zypper if not already present.
 - Creates a `_tor-ext` system user and adds you to the `_tor-ext` group (so you can read the tor control cookie).
 - Installs `/etc/systemd/system/tor-ext.service` (system-scope tor running as `_tor-ext`) and `/etc/systemd/system/tor-ext-tun2socks.service` (tun2socks running as `_tor-ext` with `CAP_NET_ADMIN` + `CAP_NET_RAW`).
 - Downloads xjasonlyu/tun2socks to `/usr/local/bin/tun2socks` if not already present.

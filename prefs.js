@@ -34,15 +34,9 @@ export default class TorExtPreferences extends ExtensionPreferences {
         authGroup.add(this._entryRow(settings, 'cookie-path', 'Cookie path'));
         authGroup.add(this._passwordRow(settings, 'control-password', 'Control password'));
 
-        const proxyGroup = new Adw.PreferencesGroup({title: 'Desktop proxy'});
-        general.add(proxyGroup);
-        proxyGroup.add(this._switchRow(settings, 'manage-system-proxy',
-            'Manage GNOME system proxy',
-            'Switch GSettings SOCKS proxy to 127.0.0.1 when Tor is on, revert when off.'));
-
         const tunGroup = new Adw.PreferencesGroup({
             title: 'Transparent proxy (tun2socks)',
-            description: 'Route ALL TCP traffic through Tor using a TUN device. Requires one-time privileged setup: sudo bash scripts/install-tun2socks.sh. Runtime stays passwordless. Enabling this switches tor from the user-mode unit to a system unit running as _tor-ext so its own outbound traffic can bypass the TUN.',
+            description: 'Route ALL TCP traffic through Tor using a TUN device. Requires one-time privileged setup: sudo bash scripts/install-tor-tun2socks.sh. Runtime stays passwordless. Enabling this switches tor from the user-mode unit to a system unit running as _tor-ext so its own outbound traffic can bypass the TUN.',
         });
         general.add(tunGroup);
         tunGroup.add(this._switchRow(settings, 'use-tun2socks',
