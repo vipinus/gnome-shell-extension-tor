@@ -1,0 +1,59 @@
+name: Refresh public Tor bridge list
+
+# Daily pull of Tor Project's Moat circumvention defaults → bridges/latest.json.
+# Only public/builtin bridges — see scripts/harvest-bridges.sh for the ethics
+# rationale on why private BridgeDB bridges are not aggregated here.
+
+on:
+  schedule:
+    # Every day at 03:17 UTC. Odd minute to stay off the zero-minute stampede.
+    - cron: '17 3 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bridges-refresh
+  cancel-in-progress: false
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Harvest bridges from Moat API
+        run: |
+          mkdir -p bridges
+          bash scripts/harvest-bridges.sh > bridges/latest.json.new
+          # Diff stable fields only — skip fetched_at so unchanged payload
+          # doesn't churn a commit every single run.
+          if [[ -f bridges/latest.json ]]; then
+              old=$(jq 'del(.fetched_at)' bridges/latest.json)
+              new=$(jq 'del(.fetched_at)' bridges/latest.json.new)
+              if [[ "$old" == "$new" ]]; then
+                  echo "no bridge changes — skipping commit"
+                  rm bridges/latest.json.new
+                  echo "changed=false" >> "$GITHUB_OUTPUT"
+                  exit 0
+              fi
+          fi
+          mv bridges/latest.json.new bridges/latest.json
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+        id: harvest
+
+      - name: Summarise
+        if: steps.harvest.outputs.changed == 'true'
+        run: |
+          jq '.counts, .fetched_at' bridges/latest.json
+
+      - name: Commit + push
+        if: steps.harvest.outputs.changed == 'true'
+        run: |
+          git config user.name  'tor-ext-bot'
+          git config user.email '<>'
+          git add bridges/latest.json
+          git commit -m "chore(bridges): refresh public bridge list ($(date -u +%Y-%m-%d))"
+          git push origin HEAD:main
