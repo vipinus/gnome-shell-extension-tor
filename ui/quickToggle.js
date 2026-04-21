@@ -200,7 +200,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             // flips `checked` on every click before our handler runs, so
             // rapid taps can leave the property out of sync with reality.
             try {
-                const active = await this._service.isActive();
+                const active = await this._withTimeout(
+                    this._service.isActive(), 3000, 'reconcile.isActive');
                 if (this.checked !== active) {
                     this.checked = active;
                     this.iconName = active ? ICON_ON : ICON_OFF;
@@ -264,23 +265,52 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // spin against a dead SOCKS endpoint in the brief window between.
         if (this._systemMode && this._tun2socks) {
             try {
-                if (await this._tun2socks.isActive()) {
-                    await this._tun2socks.stop();
-                    await this._tun2socks.waitForState('inactive', 10000);
+                if (await this._withTimeout(this._tun2socks.isActive(), 3000, 't2s.isActive')) {
+                    await this._withTimeout(this._tun2socks.stop(), 5000, 't2s.stop');
+                    await this._withTimeout(this._tun2socks.waitForState('inactive', 8000),
+                                            10000, 't2s.wait-inactive');
                 }
             } catch (e) {
-                console.warn(`[tor-ext] tun2socks stop failed: ${e.message}`);
+                console.warn(`[tor-ext] tun2socks stop step failed/timed out: ${e.message}`);
             }
         }
 
+        // controller.quit() writes QUIT to the ControlPort and awaits the 250
+        // response. If tor has already shut the socket (or the link is wedged)
+        // the await can hang forever — we want _turnOff to stay bounded.
         if (this._controller) {
-            try { await this._controller.quit(); } catch (_) {}
+            try {
+                await this._withTimeout(this._controller.quit(), 3000, 'controller.quit');
+            } catch (e) {
+                console.warn(`[tor-ext] controller.quit timed out: ${e.message}`);
+            }
             this._detachController();
         }
 
-        await this._service.stop();
+        try {
+            await this._withTimeout(this._service.stop(), 5000, 'service.stop');
+        } catch (e) {
+            console.warn(`[tor-ext] service.stop timed out: ${e.message}`);
+        }
         this.iconName = ICON_OFF;
         this._setSubtitle('Off');
+    }
+
+    /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
+    _withTimeout(promise, ms, tag) {
+        let cancel;
+        const timer = new Promise((_, rej) => {
+            const id = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+                rej(new Error(`${tag} timed out after ${ms}ms`));
+                return GLib.SOURCE_REMOVE;
+            });
+            cancel = () => GLib.source_remove(id);
+        });
+        return Promise.race([
+            promise.then(v => { cancel?.(); return v; },
+                         e => { cancel?.(); throw e; }),
+            timer,
+        ]);
     }
 
     async _waitForBootstrap(timeoutMs) {
