@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# install-tun2socks.sh — one-shot privileged installer for tor-ext's
-# transparent-proxy mode (tun2socks → Tor).
+# install-tor-tun2socks.sh — one-shot privileged installer for tor-ext's
+# transparent-proxy mode.
 #
 # What it does (root only — self-escalates with sudo if run as user):
-#   1. Creates system user/group `_tor-ext` (no login shell, no home mount).
-#   2. Adds the invoking user to the _tor-ext group so the control cookie is
+#   1. Installs the `tor` distro package via apt/dnf/pacman/zypper if missing.
+#   2. Creates system user/group `_tor-ext` (no login shell, no home mount).
+#   3. Adds the invoking user to the _tor-ext group so the control cookie is
 #      readable without copy-around tricks.
-#   3. Creates /etc/tor-ext/torrc and /var/lib/tor-ext/ (DataDirectory).
-#   4. Downloads xjasonlyu/tun2socks release binary to /usr/local/bin/tun2socks
+#   4. Creates /etc/tor-ext/torrc and /var/lib/tor-ext/ (DataDirectory).
+#   5. Downloads xjasonlyu/tun2socks release binary to /usr/local/bin/tun2socks
 #      if not already present (skipped when $TUN2SOCKS is pre-set).
-#   5. Installs system units:
+#   6. Installs system units:
 #        /etc/systemd/system/tor-ext.service            (tor as _tor-ext)
 #        /etc/systemd/system/tor-ext-tun2socks.service  (tun2socks as _tor-ext)
-#   6. Installs /usr/local/libexec/tor-ext/tor-ext-routing helper.
-#   7. Installs polkit rule 51-tor-ext-tun2socks.rules (active local users get
+#   7. Installs /usr/local/libexec/tor-ext/tor-ext-routing helper.
+#   8. Installs polkit rule 51-tor-ext-tun2socks.rules (active local users get
 #      passwordless start/stop on the two units).
-#   8. daemon-reload + polkit reload.
+#   9. daemon-reload + polkit reload.
 #
 # RUNTIME after setup: zero password. Tile click starts both units via DBus.
 # The per-user `~/.config/systemd/user/tor-ext.service` is left untouched —
@@ -59,16 +60,51 @@ echo ">> tun2socks:       $TUN2SOCKS_BIN (version $TUN2SOCKS_VERSION if download
 echo ">> TUN:             $TUN_DEV / $TUN_ADDR"
 echo ">> tor SOCKS/Ctrl:  $SOCKS_PORT / $CONTROL_PORT   DNSPort: $DNS_PORT"
 
-# ─── tor binary ─────────────────────────────────────────────────────
+# ─── tor binary (auto-install via distro package manager) ──────────
 TOR_BIN=$(command -v tor || true)
 if [[ -z $TOR_BIN ]]; then
-    echo "!! 'tor' binary not found in PATH. Install it first:" >&2
-    echo "   Debian/Ubuntu : apt install tor" >&2
-    echo "   Fedora        : dnf install tor" >&2
-    echo "   Arch          : pacman -S tor" >&2
-    exit 1
+    echo ">> 'tor' not installed — bringing it in via the distro package manager"
+    if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        . /etc/os-release
+        ID_LIKE=${ID_LIKE:-}
+    else
+        ID=unknown ID_LIKE=
+    fi
+    case "$ID:$ID_LIKE" in
+        debian:*|ubuntu:*|*:*debian*|*:*ubuntu*)
+            DEBIAN_FRONTEND=noninteractive apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tor ;;
+        fedora:*|rhel:*|centos:*|*:*fedora*|*:*rhel*)
+            dnf install -y tor ;;
+        arch:*|manjaro:*|*:*arch*)
+            pacman -Sy --noconfirm tor ;;
+        opensuse*:*|suse:*|*:*suse*)
+            zypper --non-interactive install tor ;;
+        *)
+            echo "!! unknown distro ($ID / $ID_LIKE) — install 'tor' manually and re-run:" >&2
+            echo "   Debian/Ubuntu : apt install tor" >&2
+            echo "   Fedora/RHEL   : dnf install tor" >&2
+            echo "   Arch/Manjaro  : pacman -S tor" >&2
+            echo "   openSUSE      : zypper install tor" >&2
+            exit 1 ;;
+    esac
+    TOR_BIN=$(command -v tor || true)
+    if [[ -z $TOR_BIN ]]; then
+        echo "!! package manager reported success but tor still not on PATH" >&2
+        exit 1
+    fi
+    echo "   installed $TOR_BIN"
 fi
 echo ">> tor binary:      $TOR_BIN"
+
+# Disable the distro's tor@default.service if it autostarts — it'll fight us
+# for 127.0.0.1:9150/9151. Users who want system tor on different ports can
+# re-enable it after editing /etc/tor/torrc.
+if systemctl is-enabled tor@default.service >/dev/null 2>&1; then
+    systemctl disable --now tor@default.service 2>/dev/null || true
+    echo "   disabled tor@default.service (would conflict on our ports)"
+fi
 
 IP_BIN=$(command -v ip)
 echo ">> ip binary:       $IP_BIN"
@@ -96,14 +132,21 @@ fi
 
 # ─── /etc/tor-ext/torrc ─────────────────────────────────────────────
 install -d -m 0755 /etc/tor-ext
+# 0750 on the data dir lets _tor-ext group members TRAVERSE (x) into the dir
+# to read the group-readable cookie file that tor creates inside it.
 install -d -m 0750 -o _tor-ext -g _tor-ext /var/lib/tor-ext
 install -d -m 0755 /usr/local/libexec/tor-ext
 
-if [[ ! -f /etc/tor-ext/torrc ]]; then
+write_torrc() {
     cat >/etc/tor-ext/torrc <<EOF
 # tor-ext system-mode torrc. Extension manages ExitNodes / Bridge /
 # UseBridges / ClientTransportPlugin via ControlPort — don't set here.
 DataDirectory /var/lib/tor-ext
+# Tor forcibly chmod's DataDirectory on every start. Without the next line
+# the dir would be 0700 and _tor-ext group members can't traverse it to
+# read the cookie. With it tor sets 0750 and the group (which includes the
+# invoking user) can enter.
+DataDirectoryGroupReadable 1
 SocksPort 127.0.0.1:${SOCKS_PORT}
 ControlPort 127.0.0.1:${CONTROL_PORT}
 CookieAuthentication 1
@@ -116,9 +159,19 @@ Log notice syslog
 EOF
     chown root:_tor-ext /etc/tor-ext/torrc
     chmod 0640 /etc/tor-ext/torrc
+}
+
+if [[ ! -f /etc/tor-ext/torrc ]]; then
+    write_torrc
     echo "   wrote /etc/tor-ext/torrc"
+elif ! grep -qE '^DataDirectoryGroupReadable\s+1' /etc/tor-ext/torrc; then
+    # Old install missing the group-readable fix — rewrite (idempotent, same
+    # ports/paths as before; user customisations via upstream patching aren't
+    # supported anyway since this script is meant to own the file).
+    write_torrc
+    echo "   rewrote /etc/tor-ext/torrc (added DataDirectoryGroupReadable)"
 else
-    echo "   = /etc/tor-ext/torrc already exists (keeping)"
+    echo "   = /etc/tor-ext/torrc already exists + current (keeping)"
 fi
 
 # ─── tun2socks binary ───────────────────────────────────────────────
