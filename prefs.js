@@ -45,12 +45,12 @@ export default class TorExtPreferences extends ExtensionPreferences {
 
         const tunGroup = new Adw.PreferencesGroup({
             title: 'Transparent proxy (tun2socks)',
-            description: 'Route ALL TCP traffic through Tor using a TUN device. Requires one-time privileged setup: sudo bash scripts/install-tor-tun2socks.sh. Runtime stays passwordless. Enabling this switches tor from the user-mode unit to a system unit running as _tor-ext so its own outbound traffic can bypass the TUN.',
+            description: 'Route ALL TCP traffic through Tor. Requires one-time setup: sudo bash scripts/install-tor-tun2socks.sh.',
         });
         general.add(tunGroup);
         tunGroup.add(this._switchRow(settings, 'use-tun2socks',
             'Route all traffic through Tor',
-            'Toggle Tor off and on after changing this setting for it to take effect.'));
+            'Toggle Tor off and on for this to take effect.'));
 
         const exitGroup = new Adw.PreferencesGroup({
             title: 'Default exit country',
