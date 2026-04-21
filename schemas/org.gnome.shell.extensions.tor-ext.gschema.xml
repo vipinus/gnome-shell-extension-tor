@@ -98,9 +98,9 @@
     </key>
 
     <key name="public-bridges-url" type="s">
-      <default>'https://raw.githubusercontent.com/vipinus/gnome-shell-extension-tor/main/bridges/latest.json'</default>
+      <default>'https://gist.githubusercontent.com/vipinus/b7572d7fc4cc5b895153adb7dc68eff0/raw/latest.json'</default>
       <summary>URL the 'Fetch public bridges' button pulls from</summary>
-      <description>Must serve the JSON schema produced by scripts/harvest-bridges.sh. Defaults to the project repo's raw URL; override to a gist URL or personal mirror if desired.</description>
+      <description>Must serve the JSON schema produced by scripts/harvest-bridges.sh. Default points at a public gist that the project's CI refreshes daily, so it stays reachable even if the main repo goes private.</description>
     </key>
 
   </schema>
