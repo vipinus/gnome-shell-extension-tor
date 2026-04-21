@@ -58,18 +58,19 @@ export default class TorExtPreferences extends ExtensionPreferences {
         window.add(bridges);
 
         const toggleGroup = new Adw.PreferencesGroup({
-            title: 'obfs4 bridges',
-            description: 'Use when your network blocks direct Tor access. Install obfs4proxy (sudo apt install obfs4proxy).',
+            title: 'Pluggable-transport bridges',
+            description: 'Use when your network blocks direct Tor access. Supported transports: obfs4, meek_lite, scramblesuit (all via obfs4proxy), and snowflake.',
         });
         bridges.add(toggleGroup);
         toggleGroup.add(this._switchRow(settings, 'use-bridges',
             'Enable bridges',
             'Routes your Tor connection through a bridge relay. Requires at least one bridge line below.'));
-        toggleGroup.add(this._entryRow(settings, 'obfs4-binary', 'obfs4proxy binary'));
+        toggleGroup.add(this._entryRow(settings, 'obfs4-binary',    'obfs4proxy binary'));
+        toggleGroup.add(this._entryRow(settings, 'snowflake-binary', 'snowflake-client binary'));
 
         const linesGroup = new Adw.PreferencesGroup({
             title: 'Bridge lines',
-            description: 'One per line, e.g.: obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0',
+            description: 'One per line. obfs4:  obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0\nsnowflake:  snowflake 192.0.2.3:1 FINGERPRINT\nThe first token is the transport; tor-ext sets up ClientTransportPlugin for each transport it sees.',
         });
         bridges.add(linesGroup);
         linesGroup.add(this._bridgesTextRow(settings));

@@ -84,9 +84,14 @@ gnome-extensions prefs tor-ext@fabric.soul7.gmail.com
 
 ### Bridges
 
-- Enable obfs4 bridges
-- `obfs4proxy` binary path (default `/usr/bin/obfs4proxy`; `sudo apt install obfs4proxy`)
-- Bridge lines (one per line, format: `obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0`)
+Supported pluggable transports: **obfs4**, **meek_lite**, **scramblesuit** (all via obfs4proxy), and **snowflake**. The first whitespace-separated token on each `Bridge` line is the transport name — tor-ext detects it and sets up the matching `ClientTransportPlugin` automatically.
+
+- Enable bridges (master switch)
+- `obfs4proxy` binary (default `/usr/bin/obfs4proxy`; `sudo apt install obfs4proxy`) — also serves meek_lite / scramblesuit
+- `snowflake-client` binary (default `/usr/bin/snowflake-client`; `sudo apt install snowflake-client`)
+- Bridge lines (one per line). Examples:
+  - `obfs4 1.2.3.4:443 FINGERPRINT cert=… iat-mode=0`
+  - `snowflake 192.0.2.3:1 2B280B2311569931620F2D73A1E27E2F1F47BD72`
 
 ## Architecture
 

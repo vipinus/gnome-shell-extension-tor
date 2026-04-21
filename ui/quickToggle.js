@@ -414,14 +414,44 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             Main.notify('Tor', 'Bridges enabled but no bridge lines configured — disable in preferences');
             throw new Error('no bridge lines');
         }
-        const obfs4 = this._settings.get_string('obfs4-binary');
-        if (!Gio.File.new_for_path(obfs4).query_exists(null)) {
-            Main.notify('Tor', `obfs4proxy not found at ${obfs4} — install it (sudo apt install obfs4proxy)`);
-            throw new Error('obfs4proxy missing');
+
+        // Collect the set of transports actually used by the configured
+        // bridge lines. First whitespace-separated token of each `Bridge`
+        // line is the transport name (obfs4, snowflake, meek_lite, …).
+        const transports = new Set();
+        for (const line of lines) {
+            const first = line.split(/\s+/)[0];
+            if (first && /^[a-z0-9_]+$/i.test(first)) transports.add(first.toLowerCase());
         }
+
+        // Map transport → (binary, install-hint, gsettings key). obfs4proxy
+        // also implements meek_lite and scramblesuit, so we reuse its path.
+        const obfs4Bin = this._settings.get_string('obfs4-binary');
+        const snowflakeBin = this._settings.get_string('snowflake-binary');
+        const PT = {
+            obfs4:         {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
+            meek_lite:     {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
+            scramblesuit:  {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
+            snowflake:     {bin: snowflakeBin, hint: 'sudo apt install snowflake-client'},
+        };
+
+        const ctp = [];
+        for (const t of transports) {
+            const entry = PT[t];
+            if (!entry) {
+                Main.notify('Tor', `Bridge transport '${t}' is not supported — drop those lines or add a ClientTransportPlugin for it`);
+                throw new Error(`unsupported transport ${t}`);
+            }
+            if (!Gio.File.new_for_path(entry.bin).query_exists(null)) {
+                Main.notify('Tor', `${t} helper not found at ${entry.bin} — install it (${entry.hint})`);
+                throw new Error(`${t} binary missing at ${entry.bin}`);
+            }
+            ctp.push(`${t} exec ${entry.bin}`);
+        }
+
         await this._controller.setConf({
             UseBridges: '1',
-            ClientTransportPlugin: `obfs4 exec ${obfs4}`,
+            ClientTransportPlugin: ctp,
             Bridge: lines,
         });
     }

@@ -42,6 +42,13 @@
     <key name="obfs4-binary" type="s">
       <default>'/usr/bin/obfs4proxy'</default>
       <summary>Path to obfs4proxy binary</summary>
+      <description>Also used as the ClientTransportPlugin exec for meek_lite — obfs4proxy ships both.</description>
+    </key>
+
+    <key name="snowflake-binary" type="s">
+      <default>'/usr/bin/snowflake-client'</default>
+      <summary>Path to snowflake-client binary</summary>
+      <description>Used for Snowflake bridges. Install: sudo apt install snowflake-client  (Debian/Ubuntu) / dnf install snowflake-client (Fedora).</description>
     </key>
 
     <key name="socks-port" type="i">
