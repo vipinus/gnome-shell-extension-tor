@@ -60,42 +60,54 @@ echo ">> tun2socks:       $TUN2SOCKS_BIN (version $TUN2SOCKS_VERSION if download
 echo ">> TUN:             $TUN_DEV / $TUN_ADDR"
 echo ">> tor SOCKS/Ctrl:  $SOCKS_PORT / $CONTROL_PORT   DNSPort: $DNS_PORT"
 
-# ─── tor binary (auto-install via distro package manager) ──────────
-TOR_BIN=$(command -v tor || true)
-if [[ -z $TOR_BIN ]]; then
-    echo ">> 'tor' not installed — bringing it in via the distro package manager"
-    if [[ -r /etc/os-release ]]; then
-        # shellcheck disable=SC1091
-        . /etc/os-release
-        ID_LIKE=${ID_LIKE:-}
-    else
-        ID=unknown ID_LIKE=
+# ─── distro detection (used by pkg_install) ─────────────────────────
+if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    ID_LIKE=${ID_LIKE:-}
+else
+    ID=unknown ID_LIKE=
+fi
+
+# pkg_install <binary> <required|optional> <debian-pkg> <fedora-pkg> <arch-pkg> <suse-pkg>
+# Skips if <binary> is already on PATH. "optional" means failure → warning, not abort.
+pkg_install() {
+    local bin=$1 mode=$2 deb=$3 fed=$4 arc=$5 sus=$6
+    if command -v "$bin" >/dev/null 2>&1; then
+        echo "   = $bin already on PATH ($(command -v "$bin"))"
+        return 0
     fi
+    echo ">> '$bin' not installed — bringing it in via the distro package manager"
+    local rc=0
     case "$ID:$ID_LIKE" in
         debian:*|ubuntu:*|*:*debian*|*:*ubuntu*)
-            DEBIAN_FRONTEND=noninteractive apt-get update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tor ;;
+            [[ -z $deb ]] && rc=2 || {
+                DEBIAN_FRONTEND=noninteractive apt-get update -qq
+                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$deb" || rc=$?
+            } ;;
         fedora:*|rhel:*|centos:*|*:*fedora*|*:*rhel*)
-            dnf install -y tor ;;
+            [[ -z $fed ]] && rc=2 || dnf install -y "$fed" || rc=$? ;;
         arch:*|manjaro:*|*:*arch*)
-            pacman -Sy --noconfirm tor ;;
+            [[ -z $arc ]] && rc=2 || pacman -Sy --noconfirm "$arc" || rc=$? ;;
         opensuse*:*|suse:*|*:*suse*)
-            zypper --non-interactive install tor ;;
+            [[ -z $sus ]] && rc=2 || zypper --non-interactive install "$sus" || rc=$? ;;
         *)
-            echo "!! unknown distro ($ID / $ID_LIKE) — install 'tor' manually and re-run:" >&2
-            echo "   Debian/Ubuntu : apt install tor" >&2
-            echo "   Fedora/RHEL   : dnf install tor" >&2
-            echo "   Arch/Manjaro  : pacman -S tor" >&2
-            echo "   openSUSE      : zypper install tor" >&2
-            exit 1 ;;
+            rc=2 ;;
     esac
-    TOR_BIN=$(command -v tor || true)
-    if [[ -z $TOR_BIN ]]; then
-        echo "!! package manager reported success but tor still not on PATH" >&2
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        if [[ $mode == optional ]]; then
+            echo "   ~ could not install $bin (rc=$rc). Bridges that need it will fail until you install it manually." >&2
+            return 0
+        fi
+        echo "!! failed to install required '$bin' (rc=$rc). Install manually and re-run." >&2
         exit 1
     fi
-    echo "   installed $TOR_BIN"
-fi
+    echo "   installed $(command -v "$bin")"
+}
+
+# ─── tor (required) ─────────────────────────────────────────────────
+pkg_install tor required tor tor tor tor
+TOR_BIN=$(command -v tor)
 echo ">> tor binary:      $TOR_BIN"
 
 # Disable the distro's tor@default.service if it autostarts — it'll fight us
@@ -105,6 +117,13 @@ if systemctl is-enabled tor@default.service >/dev/null 2>&1; then
     systemctl disable --now tor@default.service 2>/dev/null || true
     echo "   disabled tor@default.service (would conflict on our ports)"
 fi
+
+# ─── pluggable transports (optional — only needed for bridges) ──────
+# obfs4proxy ships obfs4, meek_lite, and scramblesuit. snowflake-client
+# handles Snowflake bridges. Both are small; install opportunistically so
+# the tile can flip to Bridges mode without a second round-trip.
+pkg_install obfs4proxy       optional obfs4proxy       obfs4     obfs4proxy       obfs4
+pkg_install snowflake-client optional snowflake-client snowflake snowflake        ''
 
 IP_BIN=$(command -v ip)
 echo ">> ip binary:       $IP_BIN"
