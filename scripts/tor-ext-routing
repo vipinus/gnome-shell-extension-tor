@@ -20,9 +20,22 @@ set -eu
 TUN_DEV=${TUN_DEV:-tun-tor}
 DNS_PORT=${DNS_PORT:-5353}
 TABLE=100
-PRIO_EXEMPT=100
-PRIO_TUN=200
+PRIO_EXEMPT=100      # tor uid bypass
+PRIO_LAN=150         # LAN / multicast / link-local bypass
+PRIO_TUN=200         # catch-all → TUN
 TOR_UID=$(id -u _tor-ext)
+# RFC1918 + link-local + loopback + multicast + limited-broadcast subnets
+# that must bypass the TUN: apps on the local segment (KDE Connect, Dropbox
+# LAN sync, mDNS, DHCP, network printers) would otherwise get funneled to
+# tun2socks and die on UDP-ASSOC not-supported.
+LAN_NETS=(
+    10.0.0.0/8
+    172.16.0.0/12
+    192.168.0.0/16
+    169.254.0.0/16
+    224.0.0.0/4
+    255.255.255.255/32
+)
 LOG_TAG="tor-ext/routing"
 
 log() { logger -t "$LOG_TAG" -- "$*"; }
@@ -35,9 +48,15 @@ tun_rule_present() {
 }
 
 up() {
-    # Policy rules — exempt tor's uid first, then route everything else via TUN.
+    # Policy rules — exempt tor's uid first, then let LAN/multicast/link-local
+    # bypass the TUN on main table, then finally route everything else via TUN.
     exempt_rule_present || \
         ip rule add uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT"
+    for net in "${LAN_NETS[@]}"; do
+        if ! ip rule show priority "$PRIO_LAN" | grep -qF "to $net lookup main"; then
+            ip rule add to "$net" lookup main priority "$PRIO_LAN"
+        fi
+    done
     tun_rule_present || \
         ip rule add lookup "$TABLE" priority "$PRIO_TUN"
 
@@ -82,26 +101,48 @@ NFT
     # So we disable the IPv6 stack per-interface while the tunnel is up
     # (keeping `lo` intact for any local IPv6 apps). Original values are
     # snapshotted into $STATE_DIR and restored on `down`.
+    #
+    # This block is re-run on resume (via systemd sleep hook) because
+    # NetworkManager resets per-iface sysctls when it re-brings interfaces
+    # up after wake. We PRESERVE the existing state file so originals aren't
+    # overwritten with "1" on the second invocation, and we APPEND any newly
+    # discovered interfaces that weren't present at first `up`.
     STATE_DIR=/run/tor-ext
     mkdir -p "$STATE_DIR"
-    : > "$STATE_DIR/v6-disable.saved"
+    STATE_FILE="$STATE_DIR/v6-disable.saved"
+    touch "$STATE_FILE"
+    # Also flip the defaults so any interface NM brings up after this moment
+    # inherits disable_ipv6=1. Per-iface overrides below still win for already-
+    # present interfaces.
+    sysctl -q -w net.ipv6.conf.default.disable_ipv6=1 || true
+    sysctl -q -w net.ipv6.conf.all.disable_ipv6=1     || true
+
     for ifacedir in /sys/class/net/*; do
         iface=$(basename "$ifacedir")
         [[ $iface == lo ]] && continue
         disable_path=/proc/sys/net/ipv6/conf/${iface}/disable_ipv6
         [[ -w $disable_path ]] || continue
-        orig=$(cat "$disable_path" 2>/dev/null || echo 0)
-        printf '%s %s\n' "$iface" "$orig" >> "$STATE_DIR/v6-disable.saved"
+        # Only record original the FIRST time we see this interface.
+        if ! grep -qE "^${iface} " "$STATE_FILE"; then
+            orig=$(cat "$disable_path" 2>/dev/null || echo 0)
+            printf '%s %s\n' "$iface" "$orig" >> "$STATE_FILE"
+        fi
         echo 1 > "$disable_path" 2>/dev/null || true
     done
 
-    log "up: uid ${TOR_UID} exempt, default via ${TUN_DEV}, DNS→127.0.0.1:${DNS_PORT}, IPv6 disabled on non-loopback ifaces"
+    log "up: uid ${TOR_UID} exempt, LAN bypass for ${#LAN_NETS[@]} nets, default via ${TUN_DEV}, DNS→127.0.0.1:${DNS_PORT}, IPv6 disabled"
 }
 
 down() {
     ip rule del lookup "$TABLE" priority "$PRIO_TUN" 2>/dev/null || true
+    for net in "${LAN_NETS[@]}"; do
+        ip rule del to "$net" lookup main priority "$PRIO_LAN" 2>/dev/null || true
+    done
     ip rule del uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT" 2>/dev/null || true
     ip route flush table "$TABLE" 2>/dev/null || true
+    # Re-enable IPv6 globally; per-iface will be restored from state file below.
+    sysctl -q -w net.ipv6.conf.default.disable_ipv6=0 || true
+    sysctl -q -w net.ipv6.conf.all.disable_ipv6=0     || true
 
     if command -v nft >/dev/null 2>&1; then
         nft delete table inet tor-ext 2>/dev/null || true

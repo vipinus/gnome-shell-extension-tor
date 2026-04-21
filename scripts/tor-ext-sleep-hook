@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# tor-ext-sleep-hook — installed to /usr/lib/systemd/system-sleep/.
+#
+# systemd calls entries in that directory with two args:
+#   $1 = "pre"  | "post"
+#   $2 = "suspend" | "hibernate" | "hybrid-sleep" | "suspend-then-hibernate"
+#
+# On resume, NetworkManager brings interfaces down+up which resets the
+# per-interface `disable_ipv6` sysctl we set when the tunnel came up.
+# Re-running `tor-ext-routing up` is idempotent for the policy rules (they
+# skip when already present) and re-asserts IPv6 disable on every iface.
+#
+# Only fires if tor-ext-tun2socks.service is currently active — we don't
+# mess with machines that aren't in transparent-proxy mode.
+
+case "$1" in
+    post)
+        if systemctl is-active --quiet tor-ext-tun2socks.service; then
+            /usr/local/libexec/tor-ext/tor-ext-routing up || true
+        fi
+        ;;
+esac

@@ -233,6 +233,12 @@ install -m 0755 "$REPO_DIR/scripts/tor-ext-routing" \
     /usr/local/libexec/tor-ext/tor-ext-routing
 echo "   installed /usr/local/libexec/tor-ext/tor-ext-routing"
 
+# ─── systemd sleep hook (re-apply routing after resume) ─────────────
+install -d -m 0755 /usr/lib/systemd/system-sleep
+install -m 0755 "$REPO_DIR/scripts/tor-ext-sleep-hook" \
+    /usr/lib/systemd/system-sleep/tor-ext
+echo "   installed /usr/lib/systemd/system-sleep/tor-ext"
+
 # ─── systemd units (templated with real paths) ──────────────────────
 render_unit() {
     local src=$1 dst=$2

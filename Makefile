@@ -61,7 +61,8 @@ tun2socks-uninstall:
 	sudo rm -f /etc/systemd/system/tor-ext.service \
 	           /etc/systemd/system/tor-ext-tun2socks.service \
 	           /etc/polkit-1/rules.d/51-tor-ext-tun2socks.rules \
-	           /usr/local/libexec/tor-ext/tor-ext-routing
+	           /usr/local/libexec/tor-ext/tor-ext-routing \
+	           /usr/lib/systemd/system-sleep/tor-ext
 	sudo rmdir /usr/local/libexec/tor-ext 2>/dev/null || true
 	sudo systemctl daemon-reload
 	sudo systemctl reload polkit 2>/dev/null || true
