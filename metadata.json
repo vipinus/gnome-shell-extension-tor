@@ -5,5 +5,5 @@
   "shell-version": ["50"],
   "settings-schema": "org.gnome.shell.extensions.tor-ext",
   "url": "https://github.com/vipinus/gnome-shell-extension-tor",
-  "version-name": "0.5.1"
+  "version-name": "0.5.2"
 }
