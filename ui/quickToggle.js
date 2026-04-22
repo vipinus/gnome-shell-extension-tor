@@ -6,6 +6,7 @@
 //   - live bootstrap % subtitle via STATUS_CLIENT events (phase 7)
 //   - New Identity button via SIGNAL NEWNYM + CLEARDNSCACHE (phase 8)
 
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -108,6 +109,21 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Row 2 — Exit country submenu
         this._exitItem = new PopupMenu.PopupSubMenuMenuItem('Exit country');
+        // Cap the country list at ~6 rows with a scrollbar.
+        //
+        // Stock PopupSubMenu._needsScrollbar() reads max-height from the
+        // *top* menu's theme node (gnome-shell ui/popupMenu.js line ~1168),
+        // so a max-height on the submenu actor is ignored and
+        // vscrollbar_policy stays at NEVER. Override the instance method to
+        // read the submenu's own max-height + the inner box's natural
+        // height — then open() flips the submenu's internal ScrollView to
+        // AUTOMATIC and the content clips+scrolls as expected.
+        this._exitItem.menu.actor.set_style('max-height: 14em;');
+        this._exitItem.menu._needsScrollbar = function () {
+            const [, natural] = this.box.get_preferred_height(-1);
+            const maxH = this.actor.get_theme_node().get_max_height();
+            return maxH >= 0 && natural >= maxH;
+        };
         this.menu.addMenuItem(this._exitItem);
         this._countryItems = new Map();  // code → PopupMenuItem
         for (const c of COUNTRIES) {
@@ -122,6 +138,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Row 3 — SOCKS connection info (tap to copy)
         this._socksItem = new PopupMenu.PopupMenuItem(this._socksLabelText());
+        const copyIcon = new St.Icon({
+            icon_name: 'edit-copy-symbolic',
+            style_class: 'popup-menu-icon',
+            x_align: Clutter.ActorAlign.END,
+            x_expand: true,
+        });
+        this._socksItem.add_child(copyIcon);
         this._socksItem.connect('activate', () => this._copySocksAddress());
         this.menu.addMenuItem(this._socksItem);
 
@@ -419,7 +442,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     _socksLabelText() {
         const port = this._settings.get_int('socks-port');
-        return `SOCKS5  127.0.0.1:${port}  (copy)`;
+        return `SOCKS5  127.0.0.1:${port}`;
     }
 
     _copySocksAddress() {

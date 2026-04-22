@@ -19,17 +19,31 @@ Target: **GNOME Shell 50+**, `tor` available via the distro package manager.
 
 ## Install
 
-Two paths, pick one.
-
-### Path 1 — Default (zero sudo)
+Step 1 — drop the extension into place (same for every path):
 
 ```bash
 git clone https://github.com/vipinus/gnome-shell-extension-tor tor-ext
 cd tor-ext
-make install                        # copies to ~/.local/share/gnome-shell/extensions/
-bash scripts/install-user-tor.sh    # per-user tor unit + torrc in $HOME, no sudo
-# Log out / log back in (Wayland), then:
-gnome-extensions enable tor-ext@fabric.soul7.gmail.com
+make install    # → ~/.local/share/gnome-shell/extensions/tor-ext@fabric.soul7.gmail.com/
+make enable     # equivalent to: gnome-extensions enable tor-ext@fabric.soul7.gmail.com
+```
+
+Step 2 — **log out and log back in** (Wayland requirement; GS45+ ESM modules aren't re-imported on hot reload).
+
+Step 3 — verify the extension loaded:
+
+```bash
+gnome-extensions info tor-ext@fabric.soul7.gmail.com   # State: ENABLED
+```
+
+Step 4 — pick a tor backend. Three options, choose one:
+
+### Path 1 — Default (zero sudo)
+
+Per-user tor unit under `$HOME`, SOCKS5 only:
+
+```bash
+bash scripts/install-user-tor.sh    # systemctl --user unit + torrc in $HOME
 ```
 
 Per-user tor listens on **9150 / 9151** (Tor Browser Bundle convention) so it coexists with any system tor on 9050/9051. Everything lives under `$HOME`:
@@ -42,17 +56,23 @@ No polkit rule, no group membership, no `/etc/tor/torrc` edits.
 
 Apps that want to go through Tor need to be pointed at `socks5://127.0.0.1:9150` manually (browsers, curl, etc.).
 
-### Path 2 — Transparent proxy (one-time sudo, runtime passwordless)
+### Path 2 — System tor with passwordless runtime (one-time sudo)
+
+If you already run the distro's system `tor@default.service` and just want the tile to start/stop it without a password prompt per click:
+
+```bash
+make polkit-install    # installs /etc/polkit-1/rules.d/50-tor-ext.rules
+```
+
+Polkit rule covers active local users only; first prompt per session is cached via `auth_admin_keep`.
+
+### Path 3 — Transparent proxy (one-time sudo, runtime passwordless)
 
 Route **every** TCP connection through Tor without configuring apps one by one:
 
 ```bash
-git clone https://github.com/vipinus/gnome-shell-extension-tor tor-ext
-cd tor-ext
-make install
-sudo bash scripts/install-tor-tun2socks.sh     # one-time sudo
+make tun2socks-install    # equivalent to: sudo bash scripts/install-tor-tun2socks.sh
 # Log out / log back in (picks up _tor-ext group membership)
-gnome-extensions enable tor-ext@fabric.soul7.gmail.com
 gsettings --schemadir ~/.local/share/gnome-shell/extensions/tor-ext@fabric.soul7.gmail.com/schemas \
   set org.gnome.shell.extensions.tor-ext use-tun2socks true
 # Or flip it in prefs: Tor tile → Preferences… → Transparent proxy
