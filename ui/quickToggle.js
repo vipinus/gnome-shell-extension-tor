@@ -21,19 +21,27 @@ import {Tun2SocksService} from '../lib/tun2socksService.js';
 import {COUNTRIES, countryName} from '../lib/countries.js';
 import {pickPrimaryCircuit} from '../lib/circuitParser.js';
 
-const ICON_ON  = 'network-vpn-symbolic';
-const ICON_OFF = 'network-vpn-disabled-symbolic';
-// Custom tor-symbolic.svg is bundled in icons/; the default VPN icon is used
-// as a fallback when the shell's icon theme doesn't pick up extension icons.
+// Custom tor-symbolic.svg lives in icons/. We load it as a Gio.FileIcon at
+// runtime (extension.path is only known at enable()) so the tile and the
+// top-bar indicator both show the project's onion glyph instead of a
+// generic VPN icon. The same icon is used for on/off — GS's QuickMenuToggle
+// already dims the unchecked state via .unchecked CSS, no separate svg needed.
+function _loadTorIcon(extPath) {
+    const file = Gio.File.new_for_path(
+        GLib.build_filenamev([extPath, 'icons', 'tor-symbolic.svg']));
+    return new Gio.FileIcon({file});
+}
 
 const TorToggle = GObject.registerClass(
 class TorToggle extends QuickSettings.QuickMenuToggle {
     _init(extension) {
+        const torIcon = _loadTorIcon(extension.path);
         super._init({
             title: 'Tor',
-            iconName: ICON_OFF,
+            gicon: torIcon,
             toggleMode: true,
         });
+        this._torIcon = torIcon;
         this._ext = extension;
         this._settings = extension.getSettings();
 
@@ -44,7 +52,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._busy       = false;
         this._bootstrapPct = 0;
 
-        this.menu.setHeader(ICON_ON, 'Tor', this._statusSubtitle());
+        this.menu.setHeader(this._torIcon, 'Tor', this._statusSubtitle());
 
         this._buildMenu();
 
@@ -189,20 +197,20 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     _setSubtitle(s) {
         this.subtitle = s;
-        if (this.menu.setHeader) this.menu.setHeader(ICON_ON, 'Tor', s);
+        if (this.menu.setHeader) this.menu.setHeader(this._torIcon, 'Tor', s);
     }
 
     _reflectInitialState(state) {
         if (state === 'active') {
             this.checked = true;
-            this.iconName = ICON_ON;
+            this.gicon = this._torIcon;
             this._setSubtitle(this._statusSubtitle());
             this._attachController()
                 .then(() => this._applyCurrentCountry())
                 .catch(() => { /* non-fatal */ });
         } else {
             this.checked = false;
-            this.iconName = ICON_OFF;
+            this.gicon = this._torIcon;
             this._setSubtitle('Off');
         }
     }
@@ -227,7 +235,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                     this._service.isActive(), 3000, 'reconcile.isActive');
                 if (this.checked !== active) {
                     this.checked = active;
-                    this.iconName = active ? ICON_ON : ICON_OFF;
+                    this.gicon = this._torIcon;
                     this._setSubtitle(this._statusSubtitle());
                 }
             } catch (_) { /* service unreachable → leave UI as-is */ }
@@ -238,7 +246,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     async _turnOn() {
         this._bootstrapPct = 0;
         this._setSubtitle('Starting…');
-        this.iconName = ICON_ON;
+        this.gicon = this._torIcon;
 
         // Belt & suspenders: if the user flipped use-tun2socks while the
         // extension was running and the listener didn't fire (GSettings
@@ -315,7 +323,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         } catch (e) {
             console.warn(`[tor-ext] service.stop timed out: ${e.message}`);
         }
-        this.iconName = ICON_OFF;
+        this.gicon = this._torIcon;
         this._setSubtitle('Off');
     }
 
@@ -557,12 +565,12 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         if (this._busy) return;
         if (state === 'inactive' && this.checked) {
             this.checked = false;
-            this.iconName = ICON_OFF;
+            this.gicon = this._torIcon;
             this._setSubtitle('Off');
             this._detachController();
         } else if (state === 'active' && !this.checked) {
             this.checked = true;
-            this.iconName = ICON_ON;
+            this.gicon = this._torIcon;
             this._setSubtitle(this._statusSubtitle());
         }
     }
@@ -589,7 +597,7 @@ class TorIndicator extends QuickSettings.SystemIndicator {
     _init(extension) {
         super._init();
         this._topIcon = this._addIndicator();
-        this._topIcon.iconName = ICON_ON;
+        this._topIcon.gicon = _loadTorIcon(extension.path);
         this._topIcon.visible = false;
 
         this._toggle = new TorToggle(extension);
