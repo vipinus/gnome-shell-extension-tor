@@ -475,24 +475,23 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Collect the set of transports actually used by the configured
         // bridge lines. First whitespace-separated token of each `Bridge`
-        // line is the transport name (obfs4, snowflake, meek_lite, …).
+        // line is the transport name (obfs4, meek_lite, scramblesuit).
         const transports = new Set();
         for (const line of lines) {
             const first = line.split(/\s+/)[0];
             if (first && /^[a-z0-9_]+$/i.test(first)) transports.add(first.toLowerCase());
         }
 
-        // Map transport → (binary, install-hint). obfs4proxy also implements
-        // meek_lite and scramblesuit, so we reuse its path for those.
-        const obfs4Bin     = this._settings.get_string('obfs4-binary');
-        const snowflakeBin = this._settings.get_string('snowflake-binary');
-        const webtunnelBin = this._settings.get_string('webtunnel-binary');
+        // Map transport → (binary, install-hint). obfs4proxy implements
+        // obfs4, meek_lite and scramblesuit, so all three reuse its path.
+        // snowflake / webtunnel were dropped: the Moat /circumvention/
+        // defaults endpoint hands them out with placeholder IPs that crash
+        // their PT clients in a tight loop.
+        const obfs4Bin = this._settings.get_string('obfs4-binary');
         const PT = {
-            obfs4:         {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
-            meek_lite:     {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
-            scramblesuit:  {bin: obfs4Bin,     hint: 'sudo apt install obfs4proxy'},
-            snowflake:     {bin: snowflakeBin, hint: 'sudo apt install snowflake-client'},
-            webtunnel:     {bin: webtunnelBin, hint: 'sudo apt install webtunnel'},
+            obfs4:        {bin: obfs4Bin, hint: 'sudo apt install obfs4proxy'},
+            meek_lite:    {bin: obfs4Bin, hint: 'sudo apt install obfs4proxy'},
+            scramblesuit: {bin: obfs4Bin, hint: 'sudo apt install obfs4proxy'},
         };
 
         const ctp = [];

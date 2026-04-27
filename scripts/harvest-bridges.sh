@@ -12,13 +12,10 @@
 #   {
 #     "fetched_at": "2026-04-21T04:15:02Z",
 #     "source":     "https://bridges.torproject.org/moat/circumvention/defaults",
-#     "counts":     {"obfs4": 9, "snowflake": 2, "webtunnel": 2},
-#     "bridges":    {
-#        "obfs4":     [ "obfs4 ...", ... ],
-#        "snowflake": [ "snowflake ...", ... ],
-#        "webtunnel": [ "webtunnel ...", ... ]
-#     }
+#     "counts":     {"obfs4": 9},
+#     "bridges":    {"obfs4": [ "obfs4 ...", ... ]}
 #   }
+# obfs4-only by design — see the `if t != "obfs4"` filter below.
 set -euo pipefail
 
 SOURCE_URL='https://bridges.torproject.org/moat/circumvention/defaults'

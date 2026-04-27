@@ -45,19 +45,7 @@
       <description>Also used as the ClientTransportPlugin exec for meek_lite — obfs4proxy ships both.</description>
     </key>
 
-    <key name="snowflake-binary" type="s">
-      <default>'/usr/bin/snowflake-client'</default>
-      <summary>Path to snowflake-client binary</summary>
-      <description>Used for Snowflake bridges. Install: sudo apt install snowflake-client  (Debian/Ubuntu) / dnf install snowflake-client (Fedora).</description>
-    </key>
-
-    <key name="webtunnel-binary" type="s">
-      <default>'/usr/bin/webtunnel-client'</default>
-      <summary>Path to webtunnel-client binary</summary>
-      <description>Used for WebTunnel bridges. Install: sudo apt install webtunnel  (Debian/Ubuntu).</description>
-    </key>
-
-    <key name="socks-port" type="i">
+<key name="socks-port" type="i">
       <default>9050</default>
       <range min="1" max="65535"/>
       <summary>Tor SOCKS port</summary>

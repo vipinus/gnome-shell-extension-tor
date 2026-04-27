@@ -67,19 +67,17 @@ export default class TorExtPreferences extends ExtensionPreferences {
 
         const toggleGroup = new Adw.PreferencesGroup({
             title: 'Pluggable-transport bridges',
-            description: 'Use when your network blocks direct Tor access. Supported transports: obfs4, meek_lite, scramblesuit (all via obfs4proxy), and snowflake.',
+            description: 'Use when your network blocks direct Tor access. Supported transports: obfs4, meek_lite, scramblesuit (all via obfs4proxy).',
         });
         bridges.add(toggleGroup);
         toggleGroup.add(this._switchRow(settings, 'use-bridges',
             'Enable bridges',
             'Routes your Tor connection through a bridge relay. Requires at least one bridge line below.'));
-        toggleGroup.add(this._entryRow(settings, 'obfs4-binary',     'obfs4proxy binary (obfs4 / meek_lite / scramblesuit)'));
-        toggleGroup.add(this._entryRow(settings, 'snowflake-binary', 'snowflake-client binary'));
-        toggleGroup.add(this._entryRow(settings, 'webtunnel-binary', 'webtunnel-client binary'));
+        toggleGroup.add(this._entryRow(settings, 'obfs4-binary', 'obfs4proxy binary (obfs4 / meek_lite / scramblesuit)'));
 
         const linesGroup = new Adw.PreferencesGroup({
             title: 'Bridge lines',
-            description: 'One per line. First token = transport (obfs4 / snowflake / webtunnel / meek_lite / scramblesuit).',
+            description: 'One per line. First token = transport (obfs4 / meek_lite / scramblesuit).',
         });
         bridges.add(linesGroup);
         linesGroup.add(this._bridgesTextRow(settings));
@@ -173,8 +171,8 @@ export default class TorExtPreferences extends ExtensionPreferences {
 
         const fetchBtn = new Gtk.Button({label: 'Fetch public bridges'});
         fetchBtn.set_tooltip_text(
-            'Download the latest obfs4 / snowflake / webtunnel bridges from ' +
-            'the Tor Project Moat API mirror (see bridges/README.md for source).');
+            'Download the latest obfs4 bridges from the Tor Project Moat API ' +
+            'mirror (see bridges/README.md for source).');
         btnRow.append(fetchBtn);
 
         const saveBtn = new Gtk.Button({label: 'Save bridges'});
@@ -219,22 +217,12 @@ export default class TorExtPreferences extends ExtensionPreferences {
         try {
             const doc = await this._fetchPublicBridges();
             const buckets = doc.bridges || {};
-            // Prefer TCP-friendly transports first, snowflake as fallback
-            // (WebRTC is chatty and startup-slow but works where the rest
-            // are blocked).
-            const ordered = ['obfs4', 'webtunnel', 'snowflake'];
-            const seen = new Set(ordered);
-            for (const k of Object.keys(buckets)) if (!seen.has(k)) ordered.push(k);
-
-            const lines = [];
-            const counts = [];
-            for (const t of ordered) {
-                const arr = buckets[t] || [];
-                if (!arr.length) continue;
-                for (const l of arr) lines.push(l);
-                counts.push(`${arr.length} ${t}`);
-            }
-            if (!lines.length) throw new Error('upstream returned zero bridges');
+            // obfs4 only — snowflake / webtunnel from Moat carry placeholder
+            // IPs that crash their PT clients (see harvest-bridges.sh).
+            const arr = buckets.obfs4 || [];
+            if (!arr.length) throw new Error('upstream returned zero obfs4 bridges');
+            const lines = [...arr];
+            const counts = [`${arr.length} obfs4`];
 
             settings.set_strv('bridge-lines', lines);
             view.buffer.text = lines.join('\n');
