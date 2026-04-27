@@ -516,19 +516,29 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // If tor isn't running we're done — country will apply on next start.
         if (!this.checked) return;
 
-        // Running: SETCONF + NEWNYM is what tor was designed for. Pushing
-        // ExitNodes={cc} StrictNodes=1 over ControlPort takes effect on the
-        // next circuit; SIGNAL NEWNYM forces existing streams onto fresh
-        // circuits so the new exit applies immediately to traffic in flight.
-        // Sub-second compared to the 10–30 s full-restart cycle, and tor
-        // never actually goes offline — bootstrapped state stays.
+        // Running: tor's runtime reconfig (SETCONF + SIGNAL) is the right
+        // primitive — but NEWNYM only marks existing circuits "dirty"; it
+        // does NOT close streams already in flight. tun2socks holds long-
+        // lived SOCKS5 connections to tor for every TCP flow it's
+        // forwarding, so apps stay pinned to the OLD exit until those
+        // connections naturally close. Bounce tun2socks itself: SIGTERM
+        // kills all forwarded streams, apps see TCP RST and reconnect,
+        // which triggers fresh SOCKS5 CONNECT requests that tor routes
+        // through new circuits matching the new ExitNodes setting.
+        // tor process is unaffected — bootstrap survives the bounce.
         this._busy = true;
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
         try {
-            await this._applyCurrentCountry();
+            await this._applyCurrentCountry();                 // SETCONF
             try { await this._controller.signal('NEWNYM'); } catch (_) {}
             try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
+            // Force every in-flight stream to rebuild. RestartUnit returns
+            // when systemd has queued the restart; waitForState confirms
+            // the new tun2socks main PID is up.
+            await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
+            await this._withTimeout(this._tun2socks.waitForState('active', 15000),
+                                    18000, 't2s.wait-active');
             this._setSubtitle(this._statusSubtitle());
             this._notifyOnce();
         } catch (e) {
