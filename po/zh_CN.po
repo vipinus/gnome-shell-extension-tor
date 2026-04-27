@@ -86,3 +86,9 @@ msgstr "网桥辅助程序未安装"
 
 msgid "Reconnecting…"
 msgstr "重新连接中…"
+
+msgid "No exit in"
+msgstr "无可用出口于"
+
+msgid "falling back to Any"
+msgstr "回退到任意"

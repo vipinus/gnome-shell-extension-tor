@@ -86,3 +86,9 @@ msgstr "Aiuto bridge non installato"
 
 msgid "Reconnecting…"
 msgstr "Riconnessione…"
+
+msgid "No exit in"
+msgstr "Nessuna uscita in"
+
+msgid "falling back to Any"
+msgstr "ripiego su Qualsiasi"

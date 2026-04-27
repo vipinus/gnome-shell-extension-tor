@@ -86,3 +86,9 @@ msgstr "Auxiliar de ponte não instalado"
 
 msgid "Reconnecting…"
 msgstr "Reconectando…"
+
+msgid "No exit in"
+msgstr "Sem saída em"
+
+msgid "falling back to Any"
+msgstr "usando Qualquer"

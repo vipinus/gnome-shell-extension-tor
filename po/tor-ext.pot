@@ -88,3 +88,9 @@ msgstr ""
 
 msgid "Reconnecting…"
 msgstr ""
+
+msgid "No exit in"
+msgstr ""
+
+msgid "falling back to Any"
+msgstr ""

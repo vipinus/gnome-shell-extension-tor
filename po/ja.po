@@ -86,3 +86,9 @@ msgstr "ブリッジヘルパーが未インストール"
 
 msgid "Reconnecting…"
 msgstr "再接続中…"
+
+msgid "No exit in"
+msgstr "出口がありません"
+
+msgid "falling back to Any"
+msgstr "任意にフォールバック"

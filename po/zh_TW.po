@@ -86,3 +86,9 @@ msgstr "橋接輔助程式未安裝"
 
 msgid "Reconnecting…"
 msgstr "重新連線中…"
+
+msgid "No exit in"
+msgstr "無可用出口於"
+
+msgid "falling back to Any"
+msgstr "回退到任意"

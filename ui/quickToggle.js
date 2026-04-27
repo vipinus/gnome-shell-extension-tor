@@ -516,16 +516,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // If tor isn't running we're done — country will apply on next start.
         if (!this.checked) return;
 
-        // Running: tor's runtime reconfig (SETCONF + SIGNAL) is the right
-        // primitive — but NEWNYM only marks existing circuits "dirty"; it
-        // does NOT close streams already in flight. tun2socks holds long-
-        // lived SOCKS5 connections to tor for every TCP flow it's
-        // forwarding, so apps stay pinned to the OLD exit until those
-        // connections naturally close. Bounce tun2socks itself: SIGTERM
-        // kills all forwarded streams, apps see TCP RST and reconnect,
-        // which triggers fresh SOCKS5 CONNECT requests that tor routes
-        // through new circuits matching the new ExitNodes setting.
-        // tor process is unaffected — bootstrap survives the bounce.
+        // Running: SETCONF + SIGNAL NEWNYM applies new ExitNodes runtime;
+        // tun2socks bounce flushes in-flight SOCKS streams (NEWNYM only
+        // dirties future circuits, doesn't kill open ones). After the
+        // bounce we wait up to 15 s for a BUILT GENERAL circuit — if the
+        // chosen country has no exits in the consensus, StrictNodes=1
+        // would otherwise leave the tile spinning forever; on timeout we
+        // revert to Any.
         this._busy = true;
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
@@ -533,12 +530,24 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             await this._applyCurrentCountry();                 // SETCONF
             try { await this._controller.signal('NEWNYM'); } catch (_) {}
             try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
-            // Force every in-flight stream to rebuild. RestartUnit returns
-            // when systemd has queued the restart; waitForState confirms
-            // the new tun2socks main PID is up.
             await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
             await this._withTimeout(this._tun2socks.waitForState('active', 15000),
                                     18000, 't2s.wait-active');
+
+            const built = code ? await this._waitForBuiltCircuit(15000) : true;
+            if (!built) {
+                // No exit in the chosen country — clear and try Any.
+                console.warn(`[tor-ext] no exit in {${code}} after 15s — reverting to Any`);
+                this._settings.set_string('default-exit-country', '');
+                this._refreshCountryChecks();
+                Main.notify('Tor',
+                    `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
+                await this._applyCurrentCountry();              // RESETCONF
+                try { await this._controller.signal('NEWNYM'); } catch (_) {}
+                await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
+                await this._withTimeout(this._tun2socks.waitForState('active', 15000),
+                                        18000, 't2s.wait-active');
+            }
             this._setSubtitle(this._statusSubtitle());
             this._notifyOnce();
         } catch (e) {
@@ -548,6 +557,28 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         } finally {
             this._busy = false;
         }
+    }
+
+    /**
+     * Poll circuit-status until a BUILT GENERAL circuit shows up or timeout.
+     * Returns true on success, false on timeout. Used to detect "country has
+     * no exit" so the caller can fall back to Any.
+     */
+    async _waitForBuiltCircuit(timeoutMs) {
+        const deadline = GLib.get_monotonic_time() / 1000 + timeoutMs;
+        while (GLib.get_monotonic_time() / 1000 < deadline) {
+            try {
+                const circs = await this._controller.getCircuits();
+                const ok = circs.some(c =>
+                    c.status === 'BUILT'
+                    && (c.meta.PURPOSE === 'GENERAL' || !c.meta.PURPOSE)
+                    && c.hops.length >= 2);
+                if (ok) return true;
+            } catch (_) { /* keep polling */ }
+            await new Promise(r => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500,
+                () => { r(); return GLib.SOURCE_REMOVE; }));
+        }
+        return false;
     }
 
     async _onNewIdentity() {

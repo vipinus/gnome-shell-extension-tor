@@ -86,3 +86,9 @@ msgstr "Assistant de bridge non installé"
 
 msgid "Reconnecting…"
 msgstr "Reconnexion…"
+
+msgid "No exit in"
+msgstr "Aucune sortie en"
+
+msgid "falling back to Any"
+msgstr "repli sur Tous"

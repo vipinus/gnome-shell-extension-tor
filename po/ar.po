@@ -86,3 +86,9 @@ msgstr "مساعد الجسر غير مثبت"
 
 msgid "Reconnecting…"
 msgstr "إعادة الاتصال…"
+
+msgid "No exit in"
+msgstr "لا يوجد خروج في"
+
+msgid "falling back to Any"
+msgstr "العودة إلى أي"

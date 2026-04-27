@@ -86,3 +86,9 @@ msgstr "Помощник моста не установлен"
 
 msgid "Reconnecting…"
 msgstr "Переподключение…"
+
+msgid "No exit in"
+msgstr "Нет выхода в"
+
+msgid "falling back to Any"
+msgstr "используется Любая"

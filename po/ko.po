@@ -86,3 +86,9 @@ msgstr "브리지 헬퍼가 설치되지 않음"
 
 msgid "Reconnecting…"
 msgstr "재연결 중…"
+
+msgid "No exit in"
+msgstr "출구 없음"
+
+msgid "falling back to Any"
+msgstr "모든 국가로 대체"

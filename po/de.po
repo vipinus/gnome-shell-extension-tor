@@ -86,3 +86,9 @@ msgstr "Bridge-Hilfsprogramm nicht installiert"
 
 msgid "Reconnecting…"
 msgstr "Verbinde neu…"
+
+msgid "No exit in"
+msgstr "Kein Exit in"
+
+msgid "falling back to Any"
+msgstr "Verwende Beliebig"
