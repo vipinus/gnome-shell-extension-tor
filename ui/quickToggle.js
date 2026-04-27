@@ -45,9 +45,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._ext = extension;
         this._settings = extension.getSettings();
 
-        this._systemMode = this._settings.get_boolean('use-tun2socks');
-        this._service    = new TorService({systemMode: this._systemMode});
-        this._tun2socks  = this._systemMode ? new Tun2SocksService() : null;
+        // v0.6.0: tor itself is always the distro's own tor.service. The
+        // `use-tun2socks` setting only governs whether the tun2socks side
+        // service is started in lockstep so apps that don't natively speak
+        // SOCKS get transparently proxied.
+        this._tun2socksMode = this._settings.get_boolean('use-tun2socks');
+        this._service    = new TorService();
+        this._tun2socks  = this._tun2socksMode ? new Tun2SocksService() : null;
         this._controller = null;
         this._busy       = false;
         this._bootstrapPct = 0;
@@ -81,30 +85,24 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     /**
-     * If use-tun2socks differs from the currently-constructed services, tear
-     * down and rebuild. No-op when tor is running (we refuse to hot-swap
-     * under traffic — user has to toggle off first).
+     * If use-tun2socks differs from the currently-constructed side service,
+     * rebuild the tun2socks handle. We don't touch _service — tor itself
+     * always points at the distro tor unit regardless of mode. No-op when
+     * tor is running (we refuse to hot-swap under traffic — user has to
+     * toggle off first).
      */
     _syncModeFromSetting() {
         const want = this._settings.get_boolean('use-tun2socks');
-        if (want === this._systemMode) return;
+        if (want === this._tun2socksMode) return;
         if (this.checked) {
             Main.notify('Tor',
                 'Transparent-proxy mode changed. Toggle Tor off and on to apply.');
             return;
         }
-        if (this._activeChangedId) {
-            try { this._service.disconnect(this._activeChangedId); } catch (_) {}
-            this._activeChangedId = 0;
-        }
-        this._service?.destroy();
         this._tun2socks?.destroy();
-        this._systemMode = want;
-        this._service = new TorService({systemMode: want});
+        this._tun2socksMode = want;
         this._tun2socks = want ? new Tun2SocksService() : null;
-        this._activeChangedId = this._service.connect('active-changed',
-            (_s, state) => this._onServiceState(state));
-        console.log(`[tor-ext] services rebuilt for systemMode=${want}`);
+        console.log(`[tor-ext] tun2socks side service ${want ? 'enabled' : 'disabled'}`);
     }
 
     _buildMenu() {
@@ -192,7 +190,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         if (!this.checked) return 'Off';
         const country = this._settings.get_string('default-exit-country');
         const base = country ? `On · Exit: ${countryName(country)}` : 'On';
-        return this._systemMode ? `${base} · Transparent` : base;
+        return this._tun2socksMode ? `${base} · Transparent` : base;
     }
 
     _setSubtitle(s) {
@@ -255,7 +253,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._syncModeFromSetting();
 
         // Pre-flight: system-mode requires the installer to have run.
-        if (this._systemMode && this._tun2socks) {
+        if (this._tun2socksMode && this._tun2socks) {
             const installed = await this._tun2socks.isInstalled();
             if (!installed) {
                 throw new Error('transparent-proxy not installed — run scripts/install-tun2socks.sh');
@@ -271,7 +269,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         await this._applyBridges();
         await this._applyCurrentCountry();
 
-        if (this._systemMode && this._tun2socks) {
+        if (this._tun2socksMode && this._tun2socks) {
             // Wait for bootstrap ≥ 100% before flipping routes — otherwise
             // tun2socks will forward to a SOCKS that can't reach the network
             // yet and all the user sees is dead tabs.
@@ -294,7 +292,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Order matters: pull the TUN routing down BEFORE tor, so apps don't
         // spin against a dead SOCKS endpoint in the brief window between.
-        if (this._systemMode && this._tun2socks) {
+        if (this._tun2socksMode && this._tun2socks) {
             try {
                 if (await this._withTimeout(this._tun2socks.isActive(), 3000, 't2s.isActive')) {
                     await this._withTimeout(this._tun2socks.stop(), 5000, 't2s.stop');
@@ -357,10 +355,9 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     async _attachController() {
         if (this._controller && this._controller.isReady) return;
-        const cookieKey = this._systemMode ? 'tor-system-cookie-path' : 'cookie-path';
         const c = new TorController({
             port:       this._settings.get_int('control-port'),
-            cookiePath: this._settings.get_string(cookieKey),
+            cookiePath: this._settings.get_string('cookie-path'),
             password:   this._settings.get_string('control-password'),
         });
         const start = GLib.get_monotonic_time();

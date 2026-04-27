@@ -2,11 +2,12 @@
 # tor-ext-routing — bring policy routing + DNS redirect for tun2socks up/down.
 #
 # Invoked by tor-ext-tun2socks.service's ExecStartPost / ExecStopPost.
-# Runs as _tor-ext with AmbientCapabilities=CAP_NET_ADMIN (inherited from unit).
+# Runs as root (the unit itself runs as root in v0.6.0).
 #
 # Policy:
-#   - Packets owned by the _tor-ext uid bypass the TUN (→ main table, normal
-#     internet). That's tor and tun2socks itself — they MUST reach real relays.
+#   - Packets owned by the distro tor uid (debian-tor / tor / _tor) bypass the
+#     TUN (→ main table, normal internet). That's tor itself — it MUST reach
+#     real relays. tun2socks runs as root and is exempt by routing-rule order.
 #   - Everything else goes through table 100, whose only entry is `default dev
 #     $TUN_DEV`. tun2socks picks packets off the TUN and forwards to tor's
 #     SOCKS5.
@@ -28,7 +29,22 @@ TABLE=100
 PRIO_EXEMPT=100      # tor uid bypass
 PRIO_LAN=150         # LAN / multicast / link-local bypass
 PRIO_TUN=200         # catch-all → TUN
-TOR_UID=$(id -u _tor-ext)
+
+# v0.6.0: distro tor user (debian-tor on Debian/Ubuntu, tor on Arch/Fedora,
+# _tor on some BSD-leaning ports). Probe in order; first existing user wins.
+# Falls through to `id` failure (script exits set -u-style if neither matches),
+# but in practice install-tor-tun2socks.sh already verified one of them.
+TOR_UID=
+for u in debian-tor tor _tor; do
+    if id -u "$u" >/dev/null 2>&1; then
+        TOR_UID=$(id -u "$u")
+        break
+    fi
+done
+if [[ -z $TOR_UID ]]; then
+    echo "tor-ext-routing: cannot find distro tor user (debian-tor / tor / _tor)" >&2
+    exit 1
+fi
 # RFC1918 + link-local + loopback + multicast + limited-broadcast subnets
 # that must bypass the TUN: apps on the local segment (KDE Connect, Dropbox
 # LAN sync, mDNS, DHCP, network printers) would otherwise get funneled to
@@ -74,7 +90,7 @@ up() {
     # DNS redirect: UDP+TCP 53 arriving on TUN → tor DNSPort on loopback.
     # Use nft if available, fall back to iptables-nft.
     if command -v nft >/dev/null 2>&1; then
-        # Kernel-level filter: drop ALL outbound IPv6 from non-_tor-ext uids.
+        # Kernel-level filter: drop ALL outbound IPv6 from non-tor uids.
         # This survives whatever NetworkManager does to per-iface sysctls
         # (RAs, link flaps, wifi reassociation, resume) — the per-iface
         # disable_ipv6 is kept as a best-effort second layer.

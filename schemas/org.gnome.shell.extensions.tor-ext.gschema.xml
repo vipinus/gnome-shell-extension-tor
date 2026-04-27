@@ -4,16 +4,16 @@
           path="/org/gnome/shell/extensions/tor-ext/">
 
     <key name="control-port" type="i">
-      <default>9151</default>
+      <default>9051</default>
       <range min="1" max="65535"/>
       <summary>Tor ControlPort</summary>
-      <description>TCP port on 127.0.0.1 where tor's ControlPort listens.</description>
+      <description>TCP port on 127.0.0.1 where tor's ControlPort listens. Default 9051 matches the distro tor package convention.</description>
     </key>
 
     <key name="cookie-path" type="s">
-      <default>'~/.local/share/tor-ext/control_auth_cookie'</default>
+      <default>'/run/tor/control.authcookie'</default>
       <summary>Cookie authentication file</summary>
-      <description>Path to tor's control auth cookie (32 raw bytes). ~ expands to $HOME at runtime.</description>
+      <description>Path to tor's control auth cookie (32 raw bytes). Default matches the distro tor package; the install scripts add the user to the debian-tor / tor group so the file is readable.</description>
     </key>
 
     <key name="control-password" type="s">
@@ -58,15 +58,16 @@
     </key>
 
     <key name="socks-port" type="i">
-      <default>9150</default>
+      <default>9050</default>
       <range min="1" max="65535"/>
       <summary>Tor SOCKS port</summary>
+      <description>Default 9050 matches the distro tor package convention.</description>
     </key>
 
     <key name="use-tun2socks" type="b">
       <default>false</default>
       <summary>Route all traffic through Tor via tun2socks (transparent proxy)</summary>
-      <description>When enabled, ALL system TCP traffic is pushed through a TUN device that tun2socks forwards to tor's SOCKS5 port. DNS is redirected to tor's DNSPort. Requires one-time privileged setup (scripts/install-tun2socks.sh) that creates a dedicated _tor-ext system user and installs system units + a polkit rule so the tile stays passwordless at runtime. Enabling this also switches tor itself from the user-mode unit to the system-mode unit so its own outbound traffic can be exempted by uid.</description>
+      <description>When enabled, ALL system TCP traffic is pushed through a TUN device that tun2socks forwards to tor's SOCKS5 port. DNS is redirected to tor's DNSPort. Requires one-time privileged setup (scripts/install-tor-tun2socks.sh) that installs a system tun2socks unit + a polkit rule so the tile stays passwordless at runtime. The tor process itself is the distro's own tor.service in either mode.</description>
     </key>
 
     <key name="tun2socks-binary" type="s">
@@ -91,13 +92,7 @@
       <summary>Tor DNSPort (used by tun2socks DNS redirection)</summary>
     </key>
 
-    <key name="tor-system-cookie-path" type="s">
-      <default>'/var/lib/tor-ext/control_auth_cookie'</default>
-      <summary>Cookie auth path for the system-mode tor unit</summary>
-      <description>Used when use-tun2socks is on. The _tor-ext group is group-readable; the installer adds the login user to that group.</description>
-    </key>
-
-    <key name="public-bridges-url" type="s">
+<key name="public-bridges-url" type="s">
       <default>'https://gist.githubusercontent.com/vipinus/b7572d7fc4cc5b895153adb7dc68eff0/raw/latest.json'</default>
       <summary>URL the 'Fetch public bridges' button pulls from</summary>
       <description>Must serve the JSON schema produced by scripts/harvest-bridges.sh. Default points at a public gist that the project's CI refreshes daily, so it stays reachable even if the main repo goes private.</description>

@@ -55,18 +55,18 @@ tun2socks-install:
 	bash scripts/install-tor-tun2socks.sh
 
 tun2socks-uninstall:
-	@echo "stopping + disabling system units…"
-	-sudo systemctl stop tor-ext-tun2socks.service tor-ext.service 2>/dev/null || true
-	-sudo systemctl disable tor-ext-tun2socks.service tor-ext.service 2>/dev/null || true
-	sudo rm -f /etc/systemd/system/tor-ext.service \
-	           /etc/systemd/system/tor-ext-tun2socks.service \
+	@echo "stopping + disabling tun2socks unit…"
+	-sudo systemctl stop tor-ext-tun2socks.service 2>/dev/null || true
+	-sudo systemctl disable tor-ext-tun2socks.service 2>/dev/null || true
+	sudo rm -f /etc/systemd/system/tor-ext-tun2socks.service \
 	           /etc/polkit-1/rules.d/51-tor-ext-tun2socks.rules \
 	           /usr/local/libexec/tor-ext/tor-ext-routing \
 	           /usr/lib/systemd/system-sleep/tor-ext
 	sudo rmdir /usr/local/libexec/tor-ext 2>/dev/null || true
 	sudo systemctl daemon-reload
 	sudo systemctl reload polkit 2>/dev/null || true
-	@echo "(tun2socks binary, _tor-ext user, /etc/tor-ext and /var/lib/tor-ext left in place — remove manually if desired)"
+	@echo "Note: /etc/tor/torrc patches and /usr/local/bin/tun2socks are left in place."
+	@echo "To revert torrc fully:  sudo cp /etc/tor/torrc.tor-ext.bak /etc/tor/torrc"
 
 pack: schemas
 	@# EGO submission: scripts/, polkit/, systemd/ MUST NOT be in the zip —
