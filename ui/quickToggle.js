@@ -274,7 +274,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         }
         this.gicon = this._torIcon;
         this._setSubtitle('Off');
-        Main.notify('Tor', 'Disconnected. Transparent proxy taken down — TCP traffic now bypasses Tor.');
+        Main.notify('Tor', 'Disconnected');
     }
 
     /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
@@ -393,9 +393,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     async _notifyOnce() {
         const exitCC = await this._resolveExitCountry();
-        const exitLabel = exitCC ? ` Exit: ${exitCC.toUpperCase()}.` : '';
         Main.notify('Tor',
-            `Transparent proxy active — all TCP routed through Tor.${exitLabel}`);
+            exitCC ? `Connected · Exit ${exitCC.toUpperCase()}` : 'Connected');
     }
 
     /**
