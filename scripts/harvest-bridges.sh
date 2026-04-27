@@ -33,9 +33,22 @@ data = json.loads(r"""$raw""")
 settings = data.get("settings", [])
 
 bridges = {}
+# Only keep obfs4. Snowflake/webtunnel entries from the Moat defaults
+# endpoint carry RFC 5737 / 3849 placeholder IPs (snowflake uses a
+# broker, webtunnel uses url=, the IP field is never an actual dial
+# target). When tor receives those Bridge lines, the matching PT
+# client (snowflake-client / webtunnel-client) crashes in a tight
+# restart loop on the unreachable IP and bootstrap stalls at 0% —
+# Tor Browser sidesteps this by selecting one transport at a time,
+# but this extension pushes ALL stored bridges, so we publish
+# obfs4-only to keep the auto-fetch flow safe out of the box.
+# Users who want snowflake / webtunnel can paste lines manually
+# in the Preferences > Bridges page.
 for s in settings:
     b = s.get("bridges", {})
     t = b.get("type")
+    if t != "obfs4":
+        continue
     strings = b.get("bridge_strings", []) or []
     if not t or not strings: continue
     bridges.setdefault(t, []).extend(strings)
