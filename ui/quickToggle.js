@@ -171,9 +171,15 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             this.checked = true;
             this.gicon = this._torIcon;
             this._setSubtitle(this._statusSubtitle());
+            // Hold the busy lock through the initial controller attach +
+            // country apply. Without it a user click on the tile or a
+            // country menu item during these few seconds slips through
+            // _busy=false and races the in-flight DBus calls.
+            this._busy = true;
             this._attachController()
                 .then(() => this._applyCurrentCountry())
-                .catch(() => { /* non-fatal */ });
+                .catch(() => { /* non-fatal */ })
+                .finally(() => { this._busy = false; });
         } else {
             this.checked = false;
             this.gicon = this._torIcon;
@@ -651,16 +657,23 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     async _onNewIdentity() {
+        if (this._busy) {
+            Main.notify('Tor', _('Please wait — busy'));
+            return;
+        }
         if (!this._controller?.isReady) {
             Main.notify('Tor', _('Not connected'));
             return;
         }
+        this._busy = true;
         try {
             await this._controller.signal('NEWNYM');
             await this._controller.signal('CLEARDNSCACHE');
             Main.notify('Tor', _('New identity — circuits rebuilt'));
         } catch (e) {
             Main.notify('Tor', `${_('New Identity failed')}: ${e.message}`);
+        } finally {
+            this._busy = false;
         }
     }
 
