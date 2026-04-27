@@ -56,11 +56,16 @@ LAN_NETS=(
     169.254.0.0/16
     224.0.0.0/4
     255.255.255.255/32
-    # Tailscale / RFC 6598 CGNAT — Tailscale's own ip rule (priority 5270
-    # → table 52) sits AFTER our PRIO_TUN=200 catch-all, so without an
-    # explicit bypass here the tailnet would be funnelled into tun-tor.
-    100.64.0.0/10
 )
+
+# Tailscale CGNAT — RFC 6598 100.64.0.0/10. Bypassed separately because
+# Tailscale's peer routes live in TABLE_TS (default 52), not main. Routing
+# tailnet traffic into main would just fallback to the default gateway and
+# fail. Tailscale's own ip rule at priority 5270 → table 52 sits AFTER our
+# PRIO_TUN=200 catch-all, so without this earlier rule the tailnet gets
+# funnelled into tun-tor → tor → exit (which has no path to your tailnet).
+TAILSCALE_NET=100.64.0.0/10
+TABLE_TS=52
 LOG_TAG="tor-ext/routing"
 
 log() { logger -t "$LOG_TAG" -- "$*"; }
@@ -82,6 +87,10 @@ up() {
             ip rule add to "$net" lookup main priority "$PRIO_LAN" 2>/dev/null || true
         fi
     done
+    # Tailscale tailnet → table 52 (Tailscale's own routing table).
+    if ! ip rule show priority "$PRIO_LAN" | grep -qF "to $TAILSCALE_NET lookup $TABLE_TS"; then
+        ip rule add to "$TAILSCALE_NET" lookup "$TABLE_TS" priority "$PRIO_LAN" 2>/dev/null || true
+    fi
     tun_rule_present || \
         ip rule add lookup "$TABLE" priority "$PRIO_TUN" 2>/dev/null || true
 
@@ -168,6 +177,7 @@ down() {
     for net in "${LAN_NETS[@]}"; do
         ip rule del to "$net" lookup main priority "$PRIO_LAN" 2>/dev/null || true
     done
+    ip rule del to "$TAILSCALE_NET" lookup "$TABLE_TS" priority "$PRIO_LAN" 2>/dev/null || true
     ip rule del uidrange "${TOR_UID}-${TOR_UID}" lookup main priority "$PRIO_EXEMPT" 2>/dev/null || true
     ip route flush table "$TABLE" 2>/dev/null || true
     # Re-enable IPv6 globally; per-iface will be restored from state file below.
