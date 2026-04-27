@@ -323,6 +323,9 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         }
         this.gicon = this._torIcon;
         this._setSubtitle('Off');
+        Main.notify('Tor', this._tun2socksMode
+            ? 'Disconnected. Transparent proxy taken down — TCP traffic now bypasses Tor.'
+            : 'Disconnected.');
     }
 
     /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
@@ -440,6 +443,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     _notifyOnce() {
+        // Two distinct UX paths:
+        //   - tun2socks mode: a separate notify('Transparent proxy active …')
+        //     already fired in _turnOn after the side service came up, so
+        //     skip here to avoid a misleading "configure SOCKS5" message —
+        //     apps don't configure anything, the TUN is transparent.
+        //   - SOCKS-only mode: tell the user where to point their apps.
+        if (this._tun2socksMode) return;
         const port = this._settings.get_int('socks-port');
         Main.notify('Tor',
             `Connected. Point your app to SOCKS5 127.0.0.1:${port}. Tap the tile menu for copy-ready values.`);
