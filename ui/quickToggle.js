@@ -534,7 +534,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             await this._withTimeout(this._tun2socks.waitForState('active', 15000),
                                     18000, 't2s.wait-active');
 
-            const built = code ? await this._waitForBuiltCircuit(15000) : true;
+            const built = code ? await this._waitForBuiltCircuit(code, 15000) : true;
             if (!built) {
                 // No exit in the chosen country — clear and try Any.
                 console.warn(`[tor-ext] no exit in {${code}} after 15s — reverting to Any`);
@@ -560,20 +560,34 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     /**
-     * Poll circuit-status until a BUILT GENERAL circuit shows up or timeout.
-     * Returns true on success, false on timeout. Used to detect "country has
-     * no exit" so the caller can fall back to Any.
+     * Poll circuit-status for a BUILT GENERAL circuit whose exit hop
+     * actually lives in the requested country (per tor's own
+     * ip-to-country GeoIP). Just matching status=BUILT is wrong — old
+     * circuits with the previous exit stay BUILT after SETCONF, and
+     * checking only "is anything BUILT?" reports success while tor is
+     * still rejecting new streams under StrictNodes=1. Returns true on
+     * the first matching circuit, false on timeout.
      */
-    async _waitForBuiltCircuit(timeoutMs) {
+    async _waitForBuiltCircuit(wantCC, timeoutMs) {
+        const want = wantCC.toLowerCase();
         const deadline = GLib.get_monotonic_time() / 1000 + timeoutMs;
+        const fpCache = new Map();   // exit fp → resolved 2-letter country
         while (GLib.get_monotonic_time() / 1000 < deadline) {
             try {
                 const circs = await this._controller.getCircuits();
-                const ok = circs.some(c =>
-                    c.status === 'BUILT'
-                    && (c.meta.PURPOSE === 'GENERAL' || !c.meta.PURPOSE)
-                    && c.hops.length >= 2);
-                if (ok) return true;
+                for (const c of circs) {
+                    if (c.status !== 'BUILT') continue;
+                    if (c.meta.PURPOSE && c.meta.PURPOSE !== 'GENERAL') continue;
+                    if (c.hops.length < 2) continue;
+                    const fp = c.hops[c.hops.length - 1].fp;
+                    let cc = fpCache.get(fp);
+                    if (cc === undefined) {
+                        const ip = await this._controller.getRelayIP(fp).catch(() => '');
+                        cc = ip ? await this._controller.getIPCountry(ip).catch(() => '') : '';
+                        fpCache.set(fp, cc);
+                    }
+                    if ((cc || '').toLowerCase() === want) return true;
+                }
             } catch (_) { /* keep polling */ }
             await new Promise(r => GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500,
                 () => { r(); return GLib.SOURCE_REMOVE; }));
