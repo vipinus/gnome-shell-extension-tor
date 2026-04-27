@@ -279,10 +279,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             this._setSubtitle('Enabling transparent proxy…');
             await this._tun2socks.start();
             await this._tun2socks.waitForState('active', 15000);
-            Main.notify('Tor', 'Transparent proxy active — all TCP traffic routed through Tor.');
-        } else {
-            this._notifyOnce();
         }
+        await this._notifyOnce();
 
         this._setSubtitle(this._statusSubtitle());
     }
@@ -442,17 +440,40 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._controller = null;
     }
 
-    _notifyOnce() {
-        // Two distinct UX paths:
-        //   - tun2socks mode: a separate notify('Transparent proxy active …')
-        //     already fired in _turnOn after the side service came up, so
-        //     skip here to avoid a misleading "configure SOCKS5" message —
-        //     apps don't configure anything, the TUN is transparent.
-        //   - SOCKS-only mode: tell the user where to point their apps.
-        if (this._tun2socksMode) return;
+    async _notifyOnce() {
+        const exitCC = await this._resolveExitCountry();
+        const exitLabel = exitCC ? ` Exit: ${exitCC.toUpperCase()}.` : '';
+        if (this._tun2socksMode) {
+            Main.notify('Tor',
+                `Transparent proxy active — all TCP routed through Tor.${exitLabel}`);
+            return;
+        }
         const port = this._settings.get_int('socks-port');
         Main.notify('Tor',
-            `Connected. Point your app to SOCKS5 127.0.0.1:${port}. Tap the tile menu for copy-ready values.`);
+            `Connected.${exitLabel} Point your app to SOCKS5 127.0.0.1:${port}.`);
+    }
+
+    /**
+     * Best-effort: ask tor for circuit-status, pick the primary GENERAL
+     * circuit, resolve its last hop to a country code. Returns null if no
+     * BUILT circuit yet, controller unready, or country lookup fails — the
+     * caller treats null as "no exit info available".
+     */
+    async _resolveExitCountry() {
+        if (!this._controller?.isReady) return null;
+        try {
+            const circs = await this._withTimeout(
+                this._controller.getCircuits(), 3000, 'getCircuits');
+            const c = pickPrimaryCircuit(circs);
+            if (!c || !c.hops.length) return null;
+            const exitFp = c.hops[c.hops.length - 1].fp;
+            const ip = await this._withTimeout(
+                this._controller.getRelayIP(exitFp), 2000, 'getRelayIP');
+            return await this._withTimeout(
+                this._controller.getIPCountry(ip), 2000, 'getIPCountry');
+        } catch (_) {
+            return null;
+        }
     }
 
     _socksLabelText() {
