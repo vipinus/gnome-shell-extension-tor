@@ -182,7 +182,20 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     async _onClicked() {
-        if (this._busy) return;
+        if (this._busy) {
+            // QuickMenuToggle already flipped this.checked on the click —
+            // before our handler ran. If we just `return`, the tile is
+            // visually inverted from reality (showing OFF while tor still
+            // active, or vice versa). Revert checked back to ground truth
+            // and toast the user. Same guard as _onCountrySelected.
+            try {
+                const active = await this._withTimeout(
+                    this._service.isActive(), 2000, 'busy.isActive');
+                this.checked = active;
+            } catch (_) {}
+            Main.notify('Tor', _('Please wait — busy'));
+            return;
+        }
         this._busy = true;
         try {
             if (this.checked) await this._turnOn();
@@ -534,7 +547,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             await this._withTimeout(this._tun2socks.waitForState('active', 15000),
                                     18000, 't2s.wait-active');
 
-            const built = code ? await this._waitForBuiltCircuit(code, 15000) : true;
+            const built = code ? await this._waitForBuiltCircuit(code, 10000) : true;
             if (!built) {
                 // No exit in the chosen country — clear and try Any.
                 console.warn(`[tor-ext] no exit in {${code}} after 15s — reverting to Any`);
