@@ -284,11 +284,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         }
         this.gicon = this._torIcon;
         this._setSubtitle(_('Off'));
-        // Skip the disconnect toast when this teardown is part of a country
-        // switch — the user is reconnecting, not disconnecting, and the
-        // _onCountrySelected path already announced "Reconnecting…".
-        if (!this._reconnecting)
-            Main.notify('Tor', _('Disconnected'));
+        Main.notify('Tor', _('Disconnected'));
     }
 
     /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
@@ -520,23 +516,26 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // If tor isn't running we're done — country will apply on next start.
         if (!this.checked) return;
 
-        // Running: do a clean tear-down + re-up so the user sees the same
-        // bootstrap UX as a manual toggle (subtitle progresses through
-        // Stopping… → Starting… → Bootstrapping → Connecting %% → Connected).
-        // The `_reconnecting` flag suppresses the Disconnected toast inside
-        // _turnOff and replaces it with a "Reconnecting…" toast here — the
-        // user is switching exit, not disconnecting.
+        // Running: SETCONF + NEWNYM is what tor was designed for. Pushing
+        // ExitNodes={cc} StrictNodes=1 over ControlPort takes effect on the
+        // next circuit; SIGNAL NEWNYM forces existing streams onto fresh
+        // circuits so the new exit applies immediately to traffic in flight.
+        // Sub-second compared to the 10–30 s full-restart cycle, and tor
+        // never actually goes offline — bootstrapped state stays.
         this._busy = true;
-        this._reconnecting = true;
         Main.notify('Tor', _('Reconnecting…'));
+        this._setSubtitle(_('Reconnecting…'));
         try {
-            await this._turnOff();
-            await this._turnOn();
+            await this._applyCurrentCountry();
+            try { await this._controller.signal('NEWNYM'); } catch (_) {}
+            try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
+            this._setSubtitle(this._statusSubtitle());
+            this._notifyOnce();
         } catch (e) {
             console.warn(`[tor-ext] exit-country switch failed: ${e.message}`);
+            this._setSubtitle(this._statusSubtitle());
             Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
-            this._reconnecting = false;
             this._busy = false;
         }
     }
