@@ -569,18 +569,29 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 await this._applyCurrentCountry();
                 await this._waitForBootstrap(60000);
             } else {
-                // Fast path: SETCONF + NEWNYM + bounce tun2socks.
+                // Fast path: SETCONF + NEWNYM, then GIVE TOR A HEAD-START
+                // building the new-country circuits BEFORE bouncing
+                // tun2socks. If we bounce too early, tun2socks reconnects
+                // while tor still only has stale/wrong-country circuits,
+                // and apps get pinned to those for the next dirty-period.
                 await this._applyCurrentCountry();
                 try { await this._controller.signal('NEWNYM'); } catch (_) {}
                 try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
+                if (code) {
+                    // Wait up to 5 s for at least one matching-country
+                    // circuit. Don't fail the switch on timeout — fall
+                    // through to bounce + final verify below.
+                    await this._waitForBuiltCircuit(code, 5000);
+                }
                 await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
                 await this._withTimeout(this._tun2socks.waitForState('active', 10000),
                                         12000, 't2s.wait-active');
             }
 
             // Verify the chosen country has a usable exit. If not, fall
-            // back to Any. tor already settled on a circuit set; this is
-            // a quick swap on the live process.
+            // back to Any AND bounce tun2socks again so connections that
+            // got opened against the failed exit get killed and reroute
+            // through the now-Any tor circuits.
             if (code) {
                 const built = await this._waitForBuiltCircuit(code, 10000);
                 if (!built) {
@@ -591,6 +602,15 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                         `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
                     await this._applyCurrentCountry();   // RESETCONF
                     try { await this._controller.signal('NEWNYM'); } catch (_) {}
+                    try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
+                    // Bounce tun2socks so apps don't stay pinned to
+                    // streams opened during the failed-country attempt.
+                    // Without this the NEXT user switch starts with
+                    // tun2socks holding stale connections and the new
+                    // exit takes 1–2 extra clicks to actually appear.
+                    await this._withTimeout(this._tun2socks.restart(), 5000, 'fb.t2s.restart');
+                    await this._withTimeout(this._tun2socks.waitForState('active', 10000),
+                                            12000, 'fb.t2s.wait-active');
                 }
             }
             this._setSubtitle(this._statusSubtitle());
