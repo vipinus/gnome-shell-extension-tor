@@ -539,18 +539,30 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._busy = true;
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
-        try {
+
+        // Outer watchdog — the whole switch must finish in 25 s or we
+        // forcibly fall back. Belt over the inner timeouts because any
+        // single step (DBus stall, polkit prompt fizzle, tun2socks
+        // restart loop) could otherwise leave the tile stuck in
+        // Reconnecting… indefinitely.
+        const watchdog = new Promise((_resolve, reject) => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 25000, () => {
+                reject(new Error('switch watchdog: 25s exceeded'));
+                return GLib.SOURCE_REMOVE;
+            });
+        });
+        const work = (async () => {
             await this._applyCurrentCountry();                 // SETCONF
             try { await this._controller.signal('NEWNYM'); } catch (_) {}
             try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
             await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
-            await this._withTimeout(this._tun2socks.waitForState('active', 15000),
-                                    18000, 't2s.wait-active');
+            await this._withTimeout(this._tun2socks.waitForState('active', 10000),
+                                    12000, 't2s.wait-active');
 
             const built = code ? await this._waitForBuiltCircuit(code, 10000) : true;
             if (!built) {
                 // No exit in the chosen country — clear and try Any.
-                console.warn(`[tor-ext] no exit in {${code}} after 15s — reverting to Any`);
+                console.warn(`[tor-ext] no exit in {${code}} after 10s — reverting to Any`);
                 this._settings.set_string('default-exit-country', '');
                 this._refreshCountryChecks();
                 Main.notify('Tor',
@@ -558,15 +570,30 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 await this._applyCurrentCountry();              // RESETCONF
                 try { await this._controller.signal('NEWNYM'); } catch (_) {}
                 await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
-                await this._withTimeout(this._tun2socks.waitForState('active', 15000),
-                                        18000, 't2s.wait-active');
+                await this._withTimeout(this._tun2socks.waitForState('active', 10000),
+                                        12000, 't2s.wait-active');
             }
+        })();
+        try {
+            await Promise.race([work, watchdog]);
             this._setSubtitle(this._statusSubtitle());
             this._notifyOnce();
         } catch (e) {
-            console.warn(`[tor-ext] exit-country switch failed: ${e.message}`);
+            // Hit the watchdog OR a step exception. Force-fallback to Any
+            // so the user is never marooned on a stuck tile.
+            console.warn(`[tor-ext] exit-country switch failed: ${e.message} — forcing fallback to Any`);
+            try {
+                this._settings.set_string('default-exit-country', '');
+                this._refreshCountryChecks();
+                Main.notify('Tor',
+                    `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
+                await this._withTimeout(this._applyCurrentCountry(), 3000, 'fallback.RESETCONF');
+                try { await this._controller.signal('NEWNYM'); } catch (_) {}
+                await this._withTimeout(this._tun2socks.restart(), 5000, 'fallback.t2s.restart');
+            } catch (e2) {
+                Main.notify('Tor', `${_('Failed')}: ${e2.message}`);
+            }
             this._setSubtitle(this._statusSubtitle());
-            Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
             this._busy = false;
         }
