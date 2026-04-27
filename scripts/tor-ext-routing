@@ -56,6 +56,10 @@ LAN_NETS=(
     169.254.0.0/16
     224.0.0.0/4
     255.255.255.255/32
+    # Tailscale / RFC 6598 CGNAT — Tailscale's own ip rule (priority 5270
+    # → table 52) sits AFTER our PRIO_TUN=200 catch-all, so without an
+    # explicit bypass here the tailnet would be funnelled into tun-tor.
+    100.64.0.0/10
 )
 LOG_TAG="tor-ext/routing"
 
