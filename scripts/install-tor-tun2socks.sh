@@ -16,9 +16,7 @@
 #   7. Installs polkit rule 51-tor-ext-tun2socks.rules (active local users get
 #      passwordless start/stop on the distro tor unit + the tun2socks unit).
 #   8. Installs systemd sleep hook to re-apply routing after resume.
-#   9. Migration: detects + cleans up the old _tor-ext system user, /etc/tor-ext,
-#      /var/lib/tor-ext, and the legacy tor-ext.service from versions < 0.6.0.
-#  10. daemon-reload + polkit reload + tor restart.
+#   9. daemon-reload + polkit reload + tor restart.
 #
 # RUNTIME after setup: zero password. Tile click starts/stops both
 # tor.service (or tor@default.service) and tor-ext-tun2socks.service via
@@ -108,42 +106,6 @@ pkg_install() {
     fi
     echo "   installed $(command -v "$bin")"
 }
-
-# ─── migration from < 0.6.0 (cleanup of _tor-ext install) ───────────
-echo ">> migration check (legacy _tor-ext / tor-ext.service)"
-LEGACY_FOUND=0
-if systemctl list-unit-files tor-ext.service >/dev/null 2>&1 && \
-   systemctl cat tor-ext.service >/dev/null 2>&1; then
-    echo "   stopping + disabling legacy tor-ext.service"
-    systemctl stop    tor-ext.service 2>/dev/null || true
-    systemctl disable tor-ext.service 2>/dev/null || true
-    rm -f /etc/systemd/system/tor-ext.service
-    LEGACY_FOUND=1
-fi
-if systemctl list-unit-files tor-ext-tun2socks.service >/dev/null 2>&1 && \
-   systemctl is-active --quiet tor-ext-tun2socks.service; then
-    # Stop the old tun2socks unit before rewriting it (later in this script).
-    systemctl stop tor-ext-tun2socks.service 2>/dev/null || true
-fi
-if getent passwd _tor-ext >/dev/null 2>&1; then
-    echo "   removing legacy _tor-ext system user"
-    userdel _tor-ext 2>/dev/null || true
-    LEGACY_FOUND=1
-fi
-if getent group _tor-ext >/dev/null 2>&1; then
-    groupdel _tor-ext 2>/dev/null || true
-fi
-if [[ -d /etc/tor-ext ]]; then
-    echo "   removing legacy /etc/tor-ext"
-    rm -rf /etc/tor-ext
-    LEGACY_FOUND=1
-fi
-if [[ -d /var/lib/tor-ext ]]; then
-    echo "   removing legacy /var/lib/tor-ext"
-    rm -rf /var/lib/tor-ext
-    LEGACY_FOUND=1
-fi
-[[ $LEGACY_FOUND == 1 ]] && systemctl daemon-reload || true
 
 # ─── tor (required) ─────────────────────────────────────────────────
 pkg_install tor required tor tor tor tor

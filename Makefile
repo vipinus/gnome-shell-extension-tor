@@ -8,7 +8,7 @@ SRC_FILES = metadata.json extension.js stylesheet.css \
             schemas/$(SCHEMA_ID).gschema.xml \
             $(wildcard icons/*.svg)
 
-.PHONY: all install uninstall enable disable reload schemas pack clean polkit-install polkit-uninstall tun2socks-install tun2socks-uninstall check
+.PHONY: all install uninstall enable disable reload schemas pack clean tun2socks-install tun2socks-uninstall check
 
 all: schemas
 
@@ -41,15 +41,6 @@ disable:
 
 reload: install
 	@echo "Wayland: logout/login to reload; X11: Alt+F2 -> r"
-
-polkit-install:
-	sudo install -m 0644 polkit/50-tor-ext.rules $(POLKIT_RULES_DIR)/50-tor-ext.rules
-	sudo systemctl reload polkit 2>/dev/null || sudo systemctl restart polkit || true
-	@echo "polkit rule installed; active local users can now manage tor@default.service with a one-time password prompt"
-
-polkit-uninstall:
-	sudo rm -f $(POLKIT_RULES_DIR)/50-tor-ext.rules
-	sudo systemctl reload polkit 2>/dev/null || true
 
 tun2socks-install:
 	bash scripts/install-tor-tun2socks.sh
