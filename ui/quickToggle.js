@@ -540,96 +540,77 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
 
-        // Pre-flight: if tor's ControlPort is unreachable (process has
-        // wedged into "active but unresponsive" — observed after
-        // repeated SETCONF/NEWNYM cycles), the entire switch path will
-        // throw `setConf failed: disconnected` and the fallback can't
-        // recover. Restart tor.service first; then re-attach the
-        // controller before pushing new ExitNodes.
-        if (!this._controller?.isReady) {
-            try {
-                console.warn('[tor-ext] controller not ready before switch — restarting tor');
-                await this._withTimeout(this._service.restart(), 5000, 'pre.tor.restart');
-                await this._withTimeout(this._service.waitForState('active', 10000),
-                                        12000, 'pre.tor.wait-active');
+        try {
+            // Probe ControlPort liveness — `_controller.isReady` is local
+            // cache and stays true even when tor wedges into "systemd-active
+            // but ControlPort dead". A 2 s GETCONF probe catches the wedge.
+            const alive = await this._probeController();
+            if (!alive) {
+                // Wedge detected: tor needs a full restart, not a SETCONF.
+                console.warn('[tor-ext] ControlPort probe failed — restarting tor.service');
+                this._setSubtitle(_('Bootstrapping Tor…'));
                 this._detachController();
+                await this._withTimeout(this._service.restart(), 8000, 'tor.restart');
+                await this._withTimeout(this._service.waitForState('active', 12000),
+                                        14000, 'tor.wait-active');
+                if (!await this._tun2socks.isActive()) {
+                    await this._withTimeout(this._tun2socks.start(), 5000, 't2s.start');
+                }
+                await this._withTimeout(this._tun2socks.waitForState('active', 10000),
+                                        12000, 't2s.wait-active');
                 await this._attachController();
-            } catch (e) {
-                console.warn(`[tor-ext] pre-flight tor restart failed: ${e.message}`);
-            }
-        }
-
-        // Outer watchdog — the whole switch must finish in 25 s or we
-        // forcibly fall back. Belt over the inner timeouts because any
-        // single step (DBus stall, polkit prompt fizzle, tun2socks
-        // restart loop) could otherwise leave the tile stuck in
-        // Reconnecting… indefinitely.
-        const watchdog = new Promise((_resolve, reject) => {
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 25000, () => {
-                reject(new Error('switch watchdog: 25s exceeded'));
-                return GLib.SOURCE_REMOVE;
-            });
-        });
-        const work = (async () => {
-            await this._applyCurrentCountry();                 // SETCONF
-            try { await this._controller.signal('NEWNYM'); } catch (_) {}
-            try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
-            await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
-            await this._withTimeout(this._tun2socks.waitForState('active', 10000),
-                                    12000, 't2s.wait-active');
-
-            const built = code ? await this._waitForBuiltCircuit(code, 10000) : true;
-            if (!built) {
-                // No exit in the chosen country — clear and try Any.
-                console.warn(`[tor-ext] no exit in {${code}} after 10s — reverting to Any`);
-                this._settings.set_string('default-exit-country', '');
-                this._refreshCountryChecks();
-                Main.notify('Tor',
-                    `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
-                await this._applyCurrentCountry();              // RESETCONF
+                await this._applyBridges();
+                await this._applyCurrentCountry();
+                await this._waitForBootstrap(60000);
+            } else {
+                // Fast path: SETCONF + NEWNYM + bounce tun2socks.
+                await this._applyCurrentCountry();
                 try { await this._controller.signal('NEWNYM'); } catch (_) {}
+                try { await this._controller.signal('CLEARDNSCACHE'); } catch (_) {}
                 await this._withTimeout(this._tun2socks.restart(), 5000, 't2s.restart');
                 await this._withTimeout(this._tun2socks.waitForState('active', 10000),
                                         12000, 't2s.wait-active');
             }
-        })();
-        try {
-            await Promise.race([work, watchdog]);
+
+            // Verify the chosen country has a usable exit. If not, fall
+            // back to Any. tor already settled on a circuit set; this is
+            // a quick swap on the live process.
+            if (code) {
+                const built = await this._waitForBuiltCircuit(code, 10000);
+                if (!built) {
+                    console.warn(`[tor-ext] no exit in {${code}} after 10s — reverting to Any`);
+                    this._settings.set_string('default-exit-country', '');
+                    this._refreshCountryChecks();
+                    Main.notify('Tor',
+                        `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
+                    await this._applyCurrentCountry();   // RESETCONF
+                    try { await this._controller.signal('NEWNYM'); } catch (_) {}
+                }
+            }
             this._setSubtitle(this._statusSubtitle());
             this._notifyOnce();
         } catch (e) {
-            // Hit the watchdog OR a step exception. Force-fallback to Any
-            // so the user is never marooned on a stuck tile.
-            console.warn(`[tor-ext] exit-country switch failed: ${e.message} — forcing fallback to Any`);
-            try {
-                this._settings.set_string('default-exit-country', '');
-                this._refreshCountryChecks();
-                Main.notify('Tor',
-                    `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
-
-                // If the controller went away during the failure (the
-                // canonical 'disconnected' error path), restart tor itself
-                // before retrying RESETCONF — otherwise the retry hits the
-                // same disconnect and we recurse into uselessness. Bouncing
-                // tor.service is the cheapest reset, polkit-allowed.
-                if (!this._controller?.isReady) {
-                    try {
-                        await this._withTimeout(this._service.restart(), 5000, 'fb.tor.restart');
-                        await this._withTimeout(this._service.waitForState('active', 10000),
-                                                12000, 'fb.tor.wait-active');
-                        this._detachController();
-                        await this._attachController();
-                    } catch (_) { /* keep going; RESETCONF will still try */ }
-                }
-                await this._withTimeout(this._applyCurrentCountry(), 3000, 'fallback.RESETCONF');
-                try { await this._controller.signal('NEWNYM'); } catch (_) {}
-                await this._withTimeout(this._tun2socks.restart(), 5000, 'fallback.t2s.restart');
-            } catch (e2) {
-                Main.notify('Tor', `${_('Failed')}: ${e2.message}`);
-            }
+            console.warn(`[tor-ext] exit-country switch failed: ${e.message}`);
             this._setSubtitle(this._statusSubtitle());
+            Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
             this._busy = false;
+        }
+    }
+
+    /**
+     * 2-second GETCONF probe — true ControlPort liveness check, NOT the
+     * cached `_controller.isReady`. Returns true if tor responds within
+     * 2 s, false otherwise (timeout / disconnect / not yet attached).
+     */
+    async _probeController() {
+        if (!this._controller?.isReady) return false;
+        try {
+            await this._withTimeout(
+                this._controller.getConf(['SocksPort']), 2000, 'cp.probe');
+            return true;
+        } catch (_) {
+            return false;
         }
     }
 
