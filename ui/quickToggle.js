@@ -540,6 +540,25 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
 
+        // Pre-flight: if tor's ControlPort is unreachable (process has
+        // wedged into "active but unresponsive" — observed after
+        // repeated SETCONF/NEWNYM cycles), the entire switch path will
+        // throw `setConf failed: disconnected` and the fallback can't
+        // recover. Restart tor.service first; then re-attach the
+        // controller before pushing new ExitNodes.
+        if (!this._controller?.isReady) {
+            try {
+                console.warn('[tor-ext] controller not ready before switch — restarting tor');
+                await this._withTimeout(this._service.restart(), 5000, 'pre.tor.restart');
+                await this._withTimeout(this._service.waitForState('active', 10000),
+                                        12000, 'pre.tor.wait-active');
+                this._detachController();
+                await this._attachController();
+            } catch (e) {
+                console.warn(`[tor-ext] pre-flight tor restart failed: ${e.message}`);
+            }
+        }
+
         // Outer watchdog — the whole switch must finish in 25 s or we
         // forcibly fall back. Belt over the inner timeouts because any
         // single step (DBus stall, polkit prompt fizzle, tun2socks
@@ -587,6 +606,21 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 this._refreshCountryChecks();
                 Main.notify('Tor',
                     `${_('No exit in')} ${countryName(code)} — ${_('falling back to Any')}`);
+
+                // If the controller went away during the failure (the
+                // canonical 'disconnected' error path), restart tor itself
+                // before retrying RESETCONF — otherwise the retry hits the
+                // same disconnect and we recurse into uselessness. Bouncing
+                // tor.service is the cheapest reset, polkit-allowed.
+                if (!this._controller?.isReady) {
+                    try {
+                        await this._withTimeout(this._service.restart(), 5000, 'fb.tor.restart');
+                        await this._withTimeout(this._service.waitForState('active', 10000),
+                                                12000, 'fb.tor.wait-active');
+                        this._detachController();
+                        await this._attachController();
+                    } catch (_) { /* keep going; RESETCONF will still try */ }
+                }
                 await this._withTimeout(this._applyCurrentCountry(), 3000, 'fallback.RESETCONF');
                 try { await this._controller.signal('NEWNYM'); } catch (_) {}
                 await this._withTimeout(this._tun2socks.restart(), 5000, 'fallback.t2s.restart');
