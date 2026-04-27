@@ -148,10 +148,14 @@ if [[ -z $TOR_USER ]]; then
 fi
 echo ">> tor user:        $TOR_USER (uid $(id -u "$TOR_USER"))"
 
-# ─── pluggable transports (optional — only needed for bridges) ──────
-pkg_install obfs4proxy       optional obfs4proxy       obfs4     obfs4proxy       obfs4
-pkg_install snowflake-client optional snowflake-client snowflake snowflake        ''
-pkg_install webtunnel-client optional webtunnel        webtunnel webtunnel-client ''
+# ─── pluggable transport (optional — only needed for bridges) ───────
+# obfs4 only. snowflake / webtunnel are intentionally NOT auto-installed:
+# the Moat /circumvention/defaults endpoint hands them out with placeholder
+# IPs (RFC 5737 / 3849) that the matching PT clients then crash on, stalling
+# tor bootstrap. The harvest-bridges.sh CI also publishes obfs4-only for
+# the same reason. Power users who want snowflake / webtunnel can install
+# the distro packages manually and paste bridge lines via Preferences.
+pkg_install obfs4proxy optional obfs4proxy obfs4 obfs4proxy obfs4
 
 IP_BIN=$(command -v ip)
 echo ">> ip binary:       $IP_BIN"
