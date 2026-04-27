@@ -52,13 +52,7 @@
       <description>Default 9050 matches the distro tor package convention.</description>
     </key>
 
-    <key name="use-tun2socks" type="b">
-      <default>false</default>
-      <summary>Route all traffic through Tor via tun2socks (transparent proxy)</summary>
-      <description>When enabled, ALL system TCP traffic is pushed through a TUN device that tun2socks forwards to tor's SOCKS5 port. DNS is redirected to tor's DNSPort. Requires one-time privileged setup (scripts/install-tor-tun2socks.sh) that installs a system tun2socks unit + a polkit rule so the tile stays passwordless at runtime. The tor process itself is the distro's own tor.service in either mode.</description>
-    </key>
-
-    <key name="tun2socks-binary" type="s">
+<key name="tun2socks-binary" type="s">
       <default>'/usr/local/bin/tun2socks'</default>
       <summary>Path to the tun2socks binary</summary>
       <description>xjasonlyu/tun2socks-compatible CLI. Installed by scripts/install-tun2socks.sh.</description>

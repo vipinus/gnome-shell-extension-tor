@@ -42,15 +42,6 @@ export default class TorExtPreferences extends ExtensionPreferences {
         authGroup.add(this._entryRow(settings, 'cookie-path', 'Cookie path'));
         authGroup.add(this._passwordRow(settings, 'control-password', 'Control password'));
 
-        const tunGroup = new Adw.PreferencesGroup({
-            title: 'Transparent proxy (tun2socks)',
-            description: 'Route ALL TCP traffic through Tor. Requires one-time setup: sudo bash scripts/install-tor-tun2socks.sh.',
-        });
-        general.add(tunGroup);
-        tunGroup.add(this._switchRow(settings, 'use-tun2socks',
-            'Route all traffic through Tor',
-            'Toggle Tor off and on for this to take effect.'));
-
         const exitGroup = new Adw.PreferencesGroup({
             title: 'Default exit country',
             description: 'Applied to ExitNodes with StrictNodes=1 when Tor starts.',

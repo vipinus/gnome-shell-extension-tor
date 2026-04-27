@@ -1,9 +1,11 @@
 {
   "uuid": "tor-ext@fabric.soul7.gmail.com",
   "name": "Tor",
-  "description": "Control the Tor network from Quick Settings: one-click on/off (uses the distro's own tor.service via polkit — no extra tor instance), exit-country picker, live bootstrap progress, New Identity, obfs4 bridges, circuit viewer, and tap-to-copy SOCKS5 endpoint. Talks to tor's ControlPort directly for runtime config. Optional transparent-proxy mode via bundled tun2socks installer routes ALL TCP traffic through Tor (one-time sudo, zero password at runtime).",
-  "shell-version": ["50"],
+  "description": "Control the Tor network from Quick Settings: one-click on/off (uses the distro's own tor.service via polkit \u2014 no extra tor instance), exit-country picker, live bootstrap progress, New Identity, obfs4 bridges, circuit viewer. Always-on transparent-proxy mode via bundled tun2socks installer routes ALL TCP traffic through Tor (one-time sudo, zero password at runtime).",
+  "shell-version": [
+    "50"
+  ],
   "settings-schema": "org.gnome.shell.extensions.tor-ext",
   "url": "https://github.com/vipinus/gnome-shell-extension-tor",
-  "version-name": "0.6.5"
+  "version-name": "0.6.6"
 }
