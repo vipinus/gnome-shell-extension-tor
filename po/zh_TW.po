@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "已關閉"
+
+msgid "On"
+msgstr "已開啟"
+
+msgid "Starting…"
+msgstr "啟動中…"
+
+msgid "Stopping…"
+msgstr "停止中…"
+
+msgid "Bootstrapping Tor…"
+msgstr "Tor 正在引導…"
+
+msgid "Enabling transparent proxy…"
+msgstr "啟用透明代理中…"
+
+msgid "Connecting"
+msgstr "連線中"
+
+msgid "Exit"
+msgstr "出口"
+
+msgid "Any"
+msgstr "任意"
+
+msgid "Connected"
+msgstr "已連線"
+
+msgid "Disconnected"
+msgstr "已中斷"
+
+msgid "Failed"
+msgstr "失敗"
+
+msgid "New Identity"
+msgstr "新身分"
+
+msgid "Exit country"
+msgstr "出口地區"
+
+msgid "Preferences…"
+msgstr "偏好設定…"
+
+msgid "Circuit"
+msgstr "線路"
+
+msgid "building…"
+msgstr "建立中…"
+
+msgid "Copied"
+msgstr "已複製"
+
+msgid "Could not set exit country"
+msgstr "無法設定出口地區"
+
+msgid "New Identity failed"
+msgstr "新身分切換失敗"
+
+msgid "New identity — circuits rebuilt"
+msgstr "新身分已生效——線路已重建"
+
+msgid "Not connected"
+msgstr "未連線"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "已啟用橋接但未設定橋接位址——請於偏好設定中停用"
+
+msgid "Please wait — busy"
+msgstr "請稍候——正在處理"
+
+msgid "Unsupported bridge transport"
+msgstr "不支援的橋接傳輸方式"
+
+msgid "Bridge helper not installed"
+msgstr "橋接輔助程式未安裝"

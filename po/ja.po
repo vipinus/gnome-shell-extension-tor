@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "オフ"
+
+msgid "On"
+msgstr "オン"
+
+msgid "Starting…"
+msgstr "起動中…"
+
+msgid "Stopping…"
+msgstr "停止中…"
+
+msgid "Bootstrapping Tor…"
+msgstr "Tor をブートストラップ中…"
+
+msgid "Enabling transparent proxy…"
+msgstr "透過プロキシを有効化中…"
+
+msgid "Connecting"
+msgstr "接続中"
+
+msgid "Exit"
+msgstr "出口"
+
+msgid "Any"
+msgstr "任意"
+
+msgid "Connected"
+msgstr "接続済み"
+
+msgid "Disconnected"
+msgstr "切断済み"
+
+msgid "Failed"
+msgstr "失敗"
+
+msgid "New Identity"
+msgstr "新しい識別子"
+
+msgid "Exit country"
+msgstr "出口の国"
+
+msgid "Preferences…"
+msgstr "設定…"
+
+msgid "Circuit"
+msgstr "回路"
+
+msgid "building…"
+msgstr "構築中…"
+
+msgid "Copied"
+msgstr "コピーしました"
+
+msgid "Could not set exit country"
+msgstr "出口の国を設定できません"
+
+msgid "New Identity failed"
+msgstr "新しい識別子の取得に失敗"
+
+msgid "New identity — circuits rebuilt"
+msgstr "新しい識別子 — 回路を再構築しました"
+
+msgid "Not connected"
+msgstr "未接続"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "ブリッジが有効ですがブリッジ行が未設定です — 設定で無効化してください"
+
+msgid "Please wait — busy"
+msgstr "お待ちください — 処理中"
+
+msgid "Unsupported bridge transport"
+msgstr "未対応のブリッジトランスポート"
+
+msgid "Bridge helper not installed"
+msgstr "ブリッジヘルパーが未インストール"

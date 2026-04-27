@@ -6,6 +6,7 @@
     "50"
   ],
   "settings-schema": "org.gnome.shell.extensions.tor-ext",
+  "gettext-domain": "tor-ext",
   "url": "https://github.com/vipinus/gnome-shell-extension-tor",
-  "version-name": "0.6.7"
+  "version-name": "0.7.0"
 }

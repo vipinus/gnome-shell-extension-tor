@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "Désactivé"
+
+msgid "On"
+msgstr "Activé"
+
+msgid "Starting…"
+msgstr "Démarrage…"
+
+msgid "Stopping…"
+msgstr "Arrêt…"
+
+msgid "Bootstrapping Tor…"
+msgstr "Initialisation de Tor…"
+
+msgid "Enabling transparent proxy…"
+msgstr "Activation du proxy transparent…"
+
+msgid "Connecting"
+msgstr "Connexion"
+
+msgid "Exit"
+msgstr "Sortie"
+
+msgid "Any"
+msgstr "Tous"
+
+msgid "Connected"
+msgstr "Connecté"
+
+msgid "Disconnected"
+msgstr "Déconnecté"
+
+msgid "Failed"
+msgstr "Échec"
+
+msgid "New Identity"
+msgstr "Nouvelle identité"
+
+msgid "Exit country"
+msgstr "Pays de sortie"
+
+msgid "Preferences…"
+msgstr "Préférences…"
+
+msgid "Circuit"
+msgstr "Circuit"
+
+msgid "building…"
+msgstr "construction…"
+
+msgid "Copied"
+msgstr "Copié"
+
+msgid "Could not set exit country"
+msgstr "Impossible de définir le pays de sortie"
+
+msgid "New Identity failed"
+msgstr "Échec de la nouvelle identité"
+
+msgid "New identity — circuits rebuilt"
+msgstr "Nouvelle identité — circuits reconstruits"
+
+msgid "Not connected"
+msgstr "Non connecté"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "Bridges activés mais aucune ligne configurée — désactivez dans les préférences"
+
+msgid "Please wait — busy"
+msgstr "Veuillez patienter — occupé"
+
+msgid "Unsupported bridge transport"
+msgstr "Transport de bridge non supporté"
+
+msgid "Bridge helper not installed"
+msgstr "Assistant de bridge non installé"

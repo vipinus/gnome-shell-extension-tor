@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "Выкл"
+
+msgid "On"
+msgstr "Вкл"
+
+msgid "Starting…"
+msgstr "Запуск…"
+
+msgid "Stopping…"
+msgstr "Остановка…"
+
+msgid "Bootstrapping Tor…"
+msgstr "Инициализация Tor…"
+
+msgid "Enabling transparent proxy…"
+msgstr "Включение прозрачного прокси…"
+
+msgid "Connecting"
+msgstr "Подключение"
+
+msgid "Exit"
+msgstr "Выход"
+
+msgid "Any"
+msgstr "Любая"
+
+msgid "Connected"
+msgstr "Подключено"
+
+msgid "Disconnected"
+msgstr "Отключено"
+
+msgid "Failed"
+msgstr "Ошибка"
+
+msgid "New Identity"
+msgstr "Новая личность"
+
+msgid "Exit country"
+msgstr "Страна выхода"
+
+msgid "Preferences…"
+msgstr "Настройки…"
+
+msgid "Circuit"
+msgstr "Цепочка"
+
+msgid "building…"
+msgstr "строится…"
+
+msgid "Copied"
+msgstr "Скопировано"
+
+msgid "Could not set exit country"
+msgstr "Не удалось задать страну выхода"
+
+msgid "New Identity failed"
+msgstr "Сбой смены личности"
+
+msgid "New identity — circuits rebuilt"
+msgstr "Новая личность — цепочки перестроены"
+
+msgid "Not connected"
+msgstr "Не подключено"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "Мосты включены, но не настроены — отключите в настройках"
+
+msgid "Please wait — busy"
+msgstr "Подождите — выполняется операция"
+
+msgid "Unsupported bridge transport"
+msgstr "Неподдерживаемый транспорт моста"
+
+msgid "Bridge helper not installed"
+msgstr "Помощник моста не установлен"

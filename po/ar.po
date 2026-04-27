@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "متوقف"
+
+msgid "On"
+msgstr "يعمل"
+
+msgid "Starting…"
+msgstr "يبدأ…"
+
+msgid "Stopping…"
+msgstr "يتوقف…"
+
+msgid "Bootstrapping Tor…"
+msgstr "تمهيد Tor…"
+
+msgid "Enabling transparent proxy…"
+msgstr "تفعيل الوكيل الشفاف…"
+
+msgid "Connecting"
+msgstr "جارٍ الاتصال"
+
+msgid "Exit"
+msgstr "الخروج"
+
+msgid "Any"
+msgstr "أي"
+
+msgid "Connected"
+msgstr "متصل"
+
+msgid "Disconnected"
+msgstr "غير متصل"
+
+msgid "Failed"
+msgstr "فشل"
+
+msgid "New Identity"
+msgstr "هوية جديدة"
+
+msgid "Exit country"
+msgstr "بلد الخروج"
+
+msgid "Preferences…"
+msgstr "التفضيلات…"
+
+msgid "Circuit"
+msgstr "الدائرة"
+
+msgid "building…"
+msgstr "قيد الإنشاء…"
+
+msgid "Copied"
+msgstr "تم النسخ"
+
+msgid "Could not set exit country"
+msgstr "تعذر تعيين بلد الخروج"
+
+msgid "New Identity failed"
+msgstr "فشل الهوية الجديدة"
+
+msgid "New identity — circuits rebuilt"
+msgstr "هوية جديدة — تم إعادة بناء الدوائر"
+
+msgid "Not connected"
+msgstr "غير متصل"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "الجسور مفعلة ولكن لا توجد أسطر معدة — قم بالتعطيل من التفضيلات"
+
+msgid "Please wait — busy"
+msgstr "يرجى الانتظار — مشغول"
+
+msgid "Unsupported bridge transport"
+msgstr "نقل جسر غير مدعوم"
+
+msgid "Bridge helper not installed"
+msgstr "مساعد الجسر غير مثبت"

@@ -8,24 +8,33 @@ SRC_FILES = metadata.json extension.js stylesheet.css \
             schemas/$(SCHEMA_ID).gschema.xml \
             $(wildcard icons/*.svg)
 
-.PHONY: all install uninstall enable disable reload schemas pack clean tun2socks-install tun2socks-uninstall check
+.PHONY: all install uninstall enable disable reload schemas locale pack clean tun2socks-install tun2socks-uninstall check
 
-all: schemas
+all: schemas locale
 
 schemas: schemas/gschemas.compiled
 
 schemas/gschemas.compiled: schemas/$(SCHEMA_ID).gschema.xml
 	glib-compile-schemas schemas/
 
-install: schemas
+# Compile every po/<lang>.po into locale/<lang>/LC_MESSAGES/tor-ext.mo so
+# the EGO pack picks them up. Idempotent: msgfmt overwrites existing .mo.
+locale: $(patsubst po/%.po,locale/%/LC_MESSAGES/tor-ext.mo,$(wildcard po/*.po))
+
+locale/%/LC_MESSAGES/tor-ext.mo: po/%.po
+	@mkdir -p $(dir $@)
+	@msgfmt -o $@ $<
+
+install: schemas locale
 	@mkdir -p $(EXT_DIR)
 	@cp -r metadata.json extension.js stylesheet.css $(EXT_DIR)/
 	@[ -f prefs.js ] && cp prefs.js $(EXT_DIR)/ || true
-	@mkdir -p $(EXT_DIR)/lib $(EXT_DIR)/ui $(EXT_DIR)/schemas $(EXT_DIR)/icons $(EXT_DIR)/scripts
+	@mkdir -p $(EXT_DIR)/lib $(EXT_DIR)/ui $(EXT_DIR)/schemas $(EXT_DIR)/icons $(EXT_DIR)/scripts $(EXT_DIR)/locale
 	@cp -r lib/*.js $(EXT_DIR)/lib/ 2>/dev/null || true
 	@cp -r ui/*.js $(EXT_DIR)/ui/ 2>/dev/null || true
 	@cp -r icons/*.svg $(EXT_DIR)/icons/ 2>/dev/null || true
 	@cp -r scripts/* $(EXT_DIR)/scripts/ 2>/dev/null || true
+	@cp -r locale/* $(EXT_DIR)/locale/ 2>/dev/null || true
 	@cp schemas/$(SCHEMA_ID).gschema.xml schemas/gschemas.compiled $(EXT_DIR)/schemas/
 	@echo "installed -> $(EXT_DIR)"
 
@@ -48,7 +57,7 @@ tun2socks-install:
 tun2socks-uninstall:
 	bash scripts/uninstall-tor-tun2socks.sh
 
-pack: schemas
+pack: schemas locale
 	@# EGO submission: scripts/, polkit/, systemd/ MUST NOT be in the zip —
 	@# they are part of one-time host setup, not the extension runtime.
 	gnome-extensions pack \
@@ -56,6 +65,8 @@ pack: schemas
 	    --extra-source=lib \
 	    --extra-source=ui \
 	    --extra-source=icons \
+	    --extra-source=locale \
+	    --podir=po \
 	    --schema=schemas/$(SCHEMA_ID).gschema.xml \
 	    .
 	@echo "-- inspecting zip contents (should NOT contain scripts/, polkit/, systemd/) --"
@@ -73,4 +84,5 @@ check:
 
 clean:
 	rm -f schemas/gschemas.compiled
+	rm -rf locale
 	rm -f *.zip

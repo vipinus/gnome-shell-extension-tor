@@ -1,0 +1,85 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Language: hi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr "बंद"
+
+msgid "On"
+msgstr "चालू"
+
+msgid "Starting…"
+msgstr "शुरू हो रहा है…"
+
+msgid "Stopping…"
+msgstr "रुक रहा है…"
+
+msgid "Bootstrapping Tor…"
+msgstr "Tor आरंभ हो रहा है…"
+
+msgid "Enabling transparent proxy…"
+msgstr "पारदर्शी प्रॉक्सी सक्षम हो रहा है…"
+
+msgid "Connecting"
+msgstr "जुड़ रहा है"
+
+msgid "Exit"
+msgstr "निकास"
+
+msgid "Any"
+msgstr "कोई भी"
+
+msgid "Connected"
+msgstr "जुड़ गया"
+
+msgid "Disconnected"
+msgstr "डिस्कनेक्ट"
+
+msgid "Failed"
+msgstr "विफल"
+
+msgid "New Identity"
+msgstr "नई पहचान"
+
+msgid "Exit country"
+msgstr "निकास देश"
+
+msgid "Preferences…"
+msgstr "वरीयताएँ…"
+
+msgid "Circuit"
+msgstr "सर्किट"
+
+msgid "building…"
+msgstr "बन रहा है…"
+
+msgid "Copied"
+msgstr "कॉपी किया"
+
+msgid "Could not set exit country"
+msgstr "निकास देश सेट नहीं हो सका"
+
+msgid "New Identity failed"
+msgstr "नई पहचान विफल"
+
+msgid "New identity — circuits rebuilt"
+msgstr "नई पहचान — सर्किट पुनर्निर्मित"
+
+msgid "Not connected"
+msgstr "जुड़ा नहीं है"
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr "ब्रिज सक्षम हैं लेकिन कोई ब्रिज लाइन कॉन्फ़िगर नहीं — वरीयताओं में अक्षम करें"
+
+msgid "Please wait — busy"
+msgstr "कृपया प्रतीक्षा करें — व्यस्त"
+
+msgid "Unsupported bridge transport"
+msgstr "असमर्थित ब्रिज परिवहन"
+
+msgid "Bridge helper not installed"
+msgstr "ब्रिज सहायक स्थापित नहीं है"

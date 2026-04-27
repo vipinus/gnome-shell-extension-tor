@@ -1,0 +1,87 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: tor-ext 0.6.x\n"
+"Report-Msgid-Bugs-To: https://github.com/vipinus/gnome-shell-extension-tor/issues\n"
+"POT-Creation-Date: 2026-04-27\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Off"
+msgstr ""
+
+msgid "On"
+msgstr ""
+
+msgid "Starting…"
+msgstr ""
+
+msgid "Stopping…"
+msgstr ""
+
+msgid "Bootstrapping Tor…"
+msgstr ""
+
+msgid "Enabling transparent proxy…"
+msgstr ""
+
+msgid "Connecting"
+msgstr ""
+
+msgid "Exit"
+msgstr ""
+
+msgid "Any"
+msgstr ""
+
+msgid "Connected"
+msgstr ""
+
+msgid "Disconnected"
+msgstr ""
+
+msgid "Failed"
+msgstr ""
+
+msgid "New Identity"
+msgstr ""
+
+msgid "Exit country"
+msgstr ""
+
+msgid "Preferences…"
+msgstr ""
+
+msgid "Circuit"
+msgstr ""
+
+msgid "building…"
+msgstr ""
+
+msgid "Copied"
+msgstr ""
+
+msgid "Could not set exit country"
+msgstr ""
+
+msgid "New Identity failed"
+msgstr ""
+
+msgid "New identity — circuits rebuilt"
+msgstr ""
+
+msgid "Not connected"
+msgstr ""
+
+msgid "Bridges enabled but no bridge lines configured — disable in preferences"
+msgstr ""
+
+msgid "Please wait — busy"
+msgstr ""
+
+msgid "Unsupported bridge transport"
+msgstr ""
+
+msgid "Bridge helper not installed"
+msgstr ""

@@ -14,6 +14,7 @@ import St from 'gi://St';
 import * as QuickSettings from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {TorController, ControllerState} from '../lib/torController.js';
 import {TorService} from '../lib/torService.js';
@@ -68,19 +69,19 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // Sync initial state
         this._service.getActiveState()
             .then(s => this._reflectInitialState(s))
-            .catch(() => this._setSubtitle('Off'));
+            .catch(() => this._setSubtitle(_('Off')));
     }
 
     _buildMenu() {
         // Row 1 — New Identity
-        this._newIdentityItem = new PopupMenu.PopupMenuItem('New Identity');
+        this._newIdentityItem = new PopupMenu.PopupMenuItem(_('New Identity'));
         this._newIdentityItem.connect('activate', () => this._onNewIdentity());
         this.menu.addMenuItem(this._newIdentityItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Row 2 — Exit country submenu
-        this._exitItem = new PopupMenu.PopupSubMenuMenuItem('Exit country');
+        this._exitItem = new PopupMenu.PopupSubMenuMenuItem(_('Exit country'));
         // Cap the country list at ~6 rows with a scrollbar.
         //
         // Stock PopupSubMenu._needsScrollbar() reads max-height from the
@@ -123,14 +124,14 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Row 4 — Circuit viewer (populated lazily when submenu opens)
-        this._circuitItem = new PopupMenu.PopupMenuItem('Circuit: —', {reactive: false});
+        this._circuitItem = new PopupMenu.PopupMenuItem(`${_('Circuit')}: —`, {reactive: false});
         this._circuitItem.can_focus = false;
         this.menu.addMenuItem(this._circuitItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Row 4 — Settings
-        const prefsItem = new PopupMenu.PopupMenuItem('Preferences…');
+        const prefsItem = new PopupMenu.PopupMenuItem(_('Preferences…'));
         prefsItem.connect('activate', () => this._ext.openPreferences());
         this.menu.addMenuItem(prefsItem);
 
@@ -147,15 +148,17 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 ? PopupMenu.Ornament.CHECK
                 : PopupMenu.Ornament.NONE);
         }
-        this._exitItem.label.text = `Exit: ${countryName(current)}`;
+        this._exitItem.label.text = `${_('Exit')}: ${current ? countryName(current) : _('Any')}`;
     }
 
     _statusSubtitle() {
         if (this._busy && this._bootstrapPct > 0 && this._bootstrapPct < 100)
-            return `Connecting… ${this._bootstrapPct}%`;
-        if (!this.checked) return 'Off';
+            return `${_('Connecting')}… ${this._bootstrapPct}%`;
+        if (!this.checked) return _('Off');
         const country = this._settings.get_string('default-exit-country');
-        return country ? `On · Exit: ${countryName(country)}` : 'On';
+        return country
+            ? `${_('On')} · ${_('Exit')}: ${countryName(country)}`
+            : _('On');
     }
 
     _setSubtitle(s) {
@@ -174,7 +177,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         } else {
             this.checked = false;
             this.gicon = this._torIcon;
-            this._setSubtitle('Off');
+            this._setSubtitle(_('Off'));
         }
     }
 
@@ -186,7 +189,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             else              await this._turnOff();
         } catch (e) {
             console.warn(`[tor-ext] toggle failed: ${e.message}`);
-            Main.notify('Tor', `Failed: ${e.message}`);
+            Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
             // Reconcile UI with real unit state before releasing the busy
             // lock. Prevents the "tile says ON but tor is OFF" drift that
@@ -208,7 +211,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     async _turnOn() {
         this._bootstrapPct = 0;
-        this._setSubtitle('Starting…');
+        this._setSubtitle(_('Starting…'));
         this.gicon = this._torIcon;
 
         // Pre-flight: tun2socks unit must exist (installer has run).
@@ -229,10 +232,10 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // Wait for bootstrap ≥ 100% before flipping routes — otherwise
         // tun2socks will forward to a SOCKS that can't reach the network
         // yet and all the user sees is dead tabs.
-        this._setSubtitle('Bootstrapping Tor…');
+        this._setSubtitle(_('Bootstrapping Tor…'));
         await this._waitForBootstrap(60000);
 
-        this._setSubtitle('Enabling transparent proxy…');
+        this._setSubtitle(_('Enabling transparent proxy…'));
         await this._tun2socks.start();
         await this._tun2socks.waitForState('active', 15000);
 
@@ -241,7 +244,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     async _turnOff() {
-        this._setSubtitle('Stopping…');
+        this._setSubtitle(_('Stopping…'));
 
         // Order matters: pull the TUN routing down BEFORE tor, so apps don't
         // spin against a dead SOCKS endpoint in the brief window between.
@@ -273,8 +276,8 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             console.warn(`[tor-ext] service.stop timed out: ${e.message}`);
         }
         this.gicon = this._torIcon;
-        this._setSubtitle('Off');
-        Main.notify('Tor', 'Disconnected');
+        this._setSubtitle(_('Off'));
+        Main.notify('Tor', _('Disconnected'));
     }
 
     /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
@@ -332,7 +335,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._bootstrapSigId = c.connect('bootstrap', (_o, pct, _tag, _summary) => {
             this._bootstrapPct = pct;
             if (pct < 100 && this.checked)
-                this._setSubtitle(`Connecting… ${pct}%`);
+                this._setSubtitle(`${_('Connecting')}… ${pct}%`);
             else if (pct >= 100 && this.checked)
                 this._setSubtitle(this._statusSubtitle());
         });
@@ -352,14 +355,14 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
     async _refreshCircuitView() {
         if (!this._controller?.isReady) {
-            this._circuitItem.label.text = 'Circuit: —';
+            this._circuitItem.label.text = `${_('Circuit')}: —`;
             return;
         }
         try {
             const circs = await this._controller.getCircuits();
             const c = pickPrimaryCircuit(circs);
             if (!c) {
-                this._circuitItem.label.text = 'Circuit: (building…)';
+                this._circuitItem.label.text = `${_('Circuit')}: (${_('building…')})`;
                 return;
             }
             const ccs = await Promise.all(c.hops.map(async h => {
@@ -367,9 +370,9 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 const cc = await this._controller.getIPCountry(ip);
                 return cc || '??';
             }));
-            this._circuitItem.label.text = `Circuit: ${ccs.join(' → ')}`;
+            this._circuitItem.label.text = `${_('Circuit')}: ${ccs.join(' → ')}`;
         } catch (e) {
-            this._circuitItem.label.text = `Circuit: (${e.message.slice(0, 40)})`;
+            this._circuitItem.label.text = `${_('Circuit')}: (${e.message.slice(0, 40)})`;
         }
     }
 
@@ -391,33 +394,15 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._controller = null;
     }
 
-    async _notifyOnce() {
-        const exitCC = await this._resolveExitCountry();
-        Main.notify('Tor',
-            exitCC ? `Connected · Exit ${exitCC.toUpperCase()}` : 'Connected');
-    }
-
     /**
-     * Best-effort: ask tor for circuit-status, pick the primary GENERAL
-     * circuit, resolve its last hop to a country code. Returns null if no
-     * BUILT circuit yet, controller unready, or country lookup fails — the
-     * caller treats null as "no exit info available".
+     * Notification shown when tor (re)connects. Reads exit country from
+     * gsettings (`default-exit-country`) — the user's configured choice,
+     * NOT a runtime IP→country lookup. Empty setting = "Any region".
      */
-    async _resolveExitCountry() {
-        if (!this._controller?.isReady) return null;
-        try {
-            const circs = await this._withTimeout(
-                this._controller.getCircuits(), 3000, 'getCircuits');
-            const c = pickPrimaryCircuit(circs);
-            if (!c || !c.hops.length) return null;
-            const exitFp = c.hops[c.hops.length - 1].fp;
-            const ip = await this._withTimeout(
-                this._controller.getRelayIP(exitFp), 2000, 'getRelayIP');
-            return await this._withTimeout(
-                this._controller.getIPCountry(ip), 2000, 'getIPCountry');
-        } catch (_) {
-            return null;
-        }
+    _notifyOnce() {
+        const code = (this._settings.get_string('default-exit-country') || '').trim().toLowerCase();
+        const exit = code ? countryName(code) : 'Any';
+        Main.notify('Tor', `${_('Connected')} · ${_('Exit')} ${exit}`);
     }
 
     _socksLabelText() {
@@ -429,7 +414,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         const port = this._settings.get_int('socks-port');
         const addr = `socks5://127.0.0.1:${port}`;
         St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, addr);
-        Main.notify('Tor', `Copied ${addr}`);
+        Main.notify('Tor', `${_('Copied')} ${addr}`);
     }
 
     async _applyBridges() {
@@ -444,7 +429,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         const lines = this._settings.get_strv('bridge-lines')
             .map(l => l.trim()).filter(Boolean);
         if (!lines.length) {
-            Main.notify('Tor', 'Bridges enabled but no bridge lines configured — disable in preferences');
+            Main.notify('Tor', _('Bridges enabled but no bridge lines configured — disable in preferences'));
             throw new Error('no bridge lines');
         }
 
@@ -473,11 +458,11 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         for (const t of transports) {
             const entry = PT[t];
             if (!entry) {
-                Main.notify('Tor', `Bridge transport '${t}' is not supported — drop those lines or add a ClientTransportPlugin for it`);
+                Main.notify('Tor', `${_('Unsupported bridge transport')}: ${t}`);
                 throw new Error(`unsupported transport ${t}`);
             }
             if (!Gio.File.new_for_path(entry.bin).query_exists(null)) {
-                Main.notify('Tor', `${t} helper not found at ${entry.bin} — install it (${entry.hint})`);
+                Main.notify('Tor', `${_('Bridge helper not installed')}: ${entry.bin}`);
                 throw new Error(`${t} binary missing at ${entry.bin}`);
             }
             ctp.push(`${t} exec ${entry.bin}`);
@@ -500,35 +485,58 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 await this._controller.resetConf(['ExitNodes', 'StrictNodes']);
         } catch (e) {
             console.warn(`[tor-ext] setConf ExitNodes failed: ${e.message}`);
-            Main.notify('Tor', `Could not set exit country: ${e.message}`);
+            Main.notify('Tor', `${_('Could not set exit country')}: ${e.message}`);
         }
     }
 
     async _onCountrySelected(code) {
+        // Forbid country swap while a connect/disconnect cycle is in flight —
+        // the bootstrap pipeline isn't reentrant, and the user clicking a
+        // country during startup would otherwise either no-op silently
+        // (confusing) or race the in-progress _turnOn (corrupting state).
+        // Bounce the click and re-sync the visible checkmark.
+        if (this._busy) {
+            this._refreshCountryChecks();
+            Main.notify('Tor', _('Please wait — busy'));
+            return;
+        }
+
+        // Persist + UI checkmarks first, regardless of running state, so the
+        // change survives even if the user picks a country with tor off.
         this._settings.set_string('default-exit-country', code || '');
         this._refreshCountryChecks();
-        if (this.checked && this._controller?.isReady) {
-            await this._applyCurrentCountry();
-            // Force fresh circuit so subsequent traffic uses the new exit
-            try { await this._controller.signal('NEWNYM'); } catch (_) {}
-            this._setSubtitle(this._statusSubtitle());
-            Main.notify('Tor', code
-                ? `Exit set to ${countryName(code)}`
-                : 'Exit country cleared');
+
+        // If tor isn't running we're done — country will apply on next start.
+        if (!this.checked) return;
+
+        // Running: do a clean tear-down + re-up so the user sees the same
+        // bootstrap UX as a manual toggle (subtitle progresses through
+        // Stopping… → Starting… → Bootstrapping → Connecting %% → Connected),
+        // and gets fresh disconnect/connect notifications. Just calling
+        // SETCONF would silently rebuild circuits — invisible to the user.
+        this._busy = true;
+        try {
+            await this._turnOff();
+            await this._turnOn();
+        } catch (e) {
+            console.warn(`[tor-ext] exit-country switch failed: ${e.message}`);
+            Main.notify('Tor', `${_('Failed')}: ${e.message}`);
+        } finally {
+            this._busy = false;
         }
     }
 
     async _onNewIdentity() {
         if (!this._controller?.isReady) {
-            Main.notify('Tor', 'Not connected');
+            Main.notify('Tor', _('Not connected'));
             return;
         }
         try {
             await this._controller.signal('NEWNYM');
             await this._controller.signal('CLEARDNSCACHE');
-            Main.notify('Tor', 'New identity — circuits rebuilt');
+            Main.notify('Tor', _('New identity — circuits rebuilt'));
         } catch (e) {
-            Main.notify('Tor', `New Identity failed: ${e.message}`);
+            Main.notify('Tor', `${_('New Identity failed')}: ${e.message}`);
         }
     }
 
@@ -537,7 +545,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         if (state === 'inactive' && this.checked) {
             this.checked = false;
             this.gicon = this._torIcon;
-            this._setSubtitle('Off');
+            this._setSubtitle(_('Off'));
             this._detachController();
         } else if (state === 'active' && !this.checked) {
             this.checked = true;
