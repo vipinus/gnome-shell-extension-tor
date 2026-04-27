@@ -56,6 +56,15 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this._tun2socks  = new Tun2SocksService();
         this._controller = null;
         this._busy       = false;
+        this._busyTimer  = 0;       // GLib timeout source id for the
+                                    // 60 s busy-lock watchdog. If a
+                                    // try/finally somewhere never reaches
+                                    // its release call (await rejected in
+                                    // a way that bypassed finally, or an
+                                    // outer cancellation killed the
+                                    // microtask queue), this auto-releases
+                                    // the lock so the user can keep using
+                                    // the tile instead of rebooting GS.
         this._bootstrapPct = 0;
 
         this.menu.setHeader(this._torIcon, 'Tor', this._statusSubtitle());
@@ -166,6 +175,35 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         if (this.menu.setHeader) this.menu.setHeader(this._torIcon, 'Tor', s);
     }
 
+    /**
+     * Acquire the busy lock with a 60s safety release. Replaces direct
+     * `this._acquireBusy()` so that any try/finally that fails to reach its
+     * release path (await rejected past finally, microtask cancellation,
+     * unexpected throw in a sync helper) doesn't permanently brick the
+     * tile. Subsequent acquires reset the watchdog.
+     */
+    _acquireBusy() {
+        this._busy = true;
+        if (this._busyTimer) {
+            try { GLib.source_remove(this._busyTimer); } catch (_) {}
+        }
+        this._busyTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 60000, () => {
+            console.warn('[tor-ext] busy lock auto-released after 60s — a flow forgot to release');
+            this._busy = false;
+            this._busyTimer = 0;
+            try { this._setSubtitle(this._statusSubtitle()); } catch (_) {}
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _releaseBusy() {
+        this._busy = false;
+        if (this._busyTimer) {
+            try { GLib.source_remove(this._busyTimer); } catch (_) {}
+            this._busyTimer = 0;
+        }
+    }
+
     _reflectInitialState(state) {
         if (state === 'active') {
             this.checked = true;
@@ -175,11 +213,11 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             // country apply. Without it a user click on the tile or a
             // country menu item during these few seconds slips through
             // _busy=false and races the in-flight DBus calls.
-            this._busy = true;
+            this._acquireBusy();
             this._attachController()
                 .then(() => this._applyCurrentCountry())
                 .catch(() => { /* non-fatal */ })
-                .finally(() => { this._busy = false; });
+                .finally(() => { this._releaseBusy(); });
         } else {
             this.checked = false;
             this.gicon = this._torIcon;
@@ -202,7 +240,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             Main.notify('Tor', _('Please wait — busy'));
             return;
         }
-        this._busy = true;
+        this._acquireBusy();
         try {
             if (this.checked) await this._turnOn();
             else              await this._turnOff();
@@ -224,7 +262,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                     this._setSubtitle(this._statusSubtitle());
                 }
             } catch (_) { /* service unreachable → leave UI as-is */ }
-            this._busy = false;
+            this._releaseBusy();
         }
     }
 
@@ -542,7 +580,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // chosen country has no exits in the consensus, StrictNodes=1
         // would otherwise leave the tile spinning forever; on timeout we
         // revert to Any.
-        this._busy = true;
+        this._acquireBusy();
         Main.notify('Tor', _('Reconnecting…'));
         this._setSubtitle(_('Reconnecting…'));
 
@@ -620,7 +658,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             this._setSubtitle(this._statusSubtitle());
             Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
-            this._busy = false;
+            this._releaseBusy();
         }
     }
 
@@ -685,7 +723,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             Main.notify('Tor', _('Not connected'));
             return;
         }
-        this._busy = true;
+        this._acquireBusy();
         try {
             await this._controller.signal('NEWNYM');
             await this._controller.signal('CLEARDNSCACHE');
@@ -693,7 +731,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         } catch (e) {
             Main.notify('Tor', `${_('New Identity failed')}: ${e.message}`);
         } finally {
-            this._busy = false;
+            this._releaseBusy();
         }
     }
 
