@@ -83,3 +83,6 @@ msgstr "Trasporto bridge non supportato"
 
 msgid "Bridge helper not installed"
 msgstr "Aiuto bridge non installato"
+
+msgid "Reconnecting…"
+msgstr "Riconnessione…"

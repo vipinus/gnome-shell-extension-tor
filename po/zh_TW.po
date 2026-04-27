@@ -83,3 +83,6 @@ msgstr "不支援的橋接傳輸方式"
 
 msgid "Bridge helper not installed"
 msgstr "橋接輔助程式未安裝"
+
+msgid "Reconnecting…"
+msgstr "重新連線中…"

@@ -83,3 +83,6 @@ msgstr "未対応のブリッジトランスポート"
 
 msgid "Bridge helper not installed"
 msgstr "ブリッジヘルパーが未インストール"
+
+msgid "Reconnecting…"
+msgstr "再接続中…"

@@ -83,3 +83,6 @@ msgstr "نقل جسر غير مدعوم"
 
 msgid "Bridge helper not installed"
 msgstr "مساعد الجسر غير مثبت"
+
+msgid "Reconnecting…"
+msgstr "إعادة الاتصال…"

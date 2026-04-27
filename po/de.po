@@ -83,3 +83,6 @@ msgstr "Nicht unterstütztes Bridge-Transport"
 
 msgid "Bridge helper not installed"
 msgstr "Bridge-Hilfsprogramm nicht installiert"
+
+msgid "Reconnecting…"
+msgstr "Verbinde neu…"

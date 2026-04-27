@@ -83,3 +83,6 @@ msgstr "不支持的网桥传输方式"
 
 msgid "Bridge helper not installed"
 msgstr "网桥辅助程序未安装"
+
+msgid "Reconnecting…"
+msgstr "重新连接中…"

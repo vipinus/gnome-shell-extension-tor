@@ -272,12 +272,23 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         try {
             await this._withTimeout(this._service.stop(), 5000, 'service.stop');
+            // CRITICAL: stop() returns once the systemd job is queued, not
+            // when tor is actually dead. If we let _turnOn race ahead it
+            // sees `isActive=true` (deactivating) and skips the restart,
+            // leaving the user wondering why the country switch had no
+            // effect. Wait for the unit to actually reach inactive.
+            await this._withTimeout(this._service.waitForState('inactive', 10000),
+                                    12000, 'service.wait-inactive');
         } catch (e) {
             console.warn(`[tor-ext] service.stop timed out: ${e.message}`);
         }
         this.gicon = this._torIcon;
         this._setSubtitle(_('Off'));
-        Main.notify('Tor', _('Disconnected'));
+        // Skip the disconnect toast when this teardown is part of a country
+        // switch — the user is reconnecting, not disconnecting, and the
+        // _onCountrySelected path already announced "Reconnecting…".
+        if (!this._reconnecting)
+            Main.notify('Tor', _('Disconnected'));
     }
 
     /** Race a promise against a timeout. Throws `Error(${tag} timed out)`. */
@@ -511,10 +522,13 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Running: do a clean tear-down + re-up so the user sees the same
         // bootstrap UX as a manual toggle (subtitle progresses through
-        // Stopping… → Starting… → Bootstrapping → Connecting %% → Connected),
-        // and gets fresh disconnect/connect notifications. Just calling
-        // SETCONF would silently rebuild circuits — invisible to the user.
+        // Stopping… → Starting… → Bootstrapping → Connecting %% → Connected).
+        // The `_reconnecting` flag suppresses the Disconnected toast inside
+        // _turnOff and replaces it with a "Reconnecting…" toast here — the
+        // user is switching exit, not disconnecting.
         this._busy = true;
+        this._reconnecting = true;
+        Main.notify('Tor', _('Reconnecting…'));
         try {
             await this._turnOff();
             await this._turnOn();
@@ -522,6 +536,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
             console.warn(`[tor-ext] exit-country switch failed: ${e.message}`);
             Main.notify('Tor', `${_('Failed')}: ${e.message}`);
         } finally {
+            this._reconnecting = false;
             this._busy = false;
         }
     }

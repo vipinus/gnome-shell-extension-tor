@@ -83,3 +83,6 @@ msgstr "Неподдерживаемый транспорт моста"
 
 msgid "Bridge helper not installed"
 msgstr "Помощник моста не установлен"
+
+msgid "Reconnecting…"
+msgstr "Переподключение…"

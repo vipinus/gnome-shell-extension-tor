@@ -85,3 +85,6 @@ msgstr ""
 
 msgid "Bridge helper not installed"
 msgstr ""
+
+msgid "Reconnecting…"
+msgstr ""

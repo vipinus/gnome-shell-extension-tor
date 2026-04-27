@@ -83,3 +83,6 @@ msgstr "असमर्थित ब्रिज परिवहन"
 
 msgid "Bridge helper not installed"
 msgstr "ब्रिज सहायक स्थापित नहीं है"
+
+msgid "Reconnecting…"
+msgstr "पुनः जुड़ रहा है…"

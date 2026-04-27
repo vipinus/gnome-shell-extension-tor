@@ -83,3 +83,6 @@ msgstr "지원되지 않는 브리지 전송"
 
 msgid "Bridge helper not installed"
 msgstr "브리지 헬퍼가 설치되지 않음"
+
+msgid "Reconnecting…"
+msgstr "재연결 중…"
