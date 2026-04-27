@@ -150,6 +150,19 @@ pkg_install tor required tor tor tor tor
 TOR_BIN=$(command -v tor)
 echo ">> tor binary:      $TOR_BIN"
 
+# v0.5.x's setup-torrc.sh sometimes left the distro tor units in `masked`
+# state to prevent autostart. With v0.6.0 the extension OWNs the lifecycle
+# and starts them on demand via polkit — masked units would refuse to start
+# regardless of polkit, so unmask both possible names. Idempotent: unmask
+# is a no-op if the unit isn't masked.
+for unit in tor.service tor@default.service; do
+    state=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+    if [[ $state == masked ]]; then
+        echo "   unmasking $unit (was masked by older setup-torrc.sh)"
+        systemctl unmask "$unit" 2>/dev/null || true
+    fi
+done
+
 # Detect distro tor group (debian-tor on Debian/Ubuntu, tor on Arch/Fedora,
 # _tor on some BSD-leaning ports). First match wins.
 TOR_GROUP=
