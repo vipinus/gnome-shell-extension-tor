@@ -750,6 +750,14 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
     }
 
     destroy() {
+        if (this._busyTimer) {
+            try { GLib.source_remove(this._busyTimer); } catch (_) {}
+            this._busyTimer = 0;
+        }
+        if (this._menuOpenId) {
+            try { this.menu.disconnect(this._menuOpenId); } catch (_) {}
+            this._menuOpenId = 0;
+        }
         if (this._clickedId) { this.disconnect(this._clickedId); this._clickedId = 0; }
         if (this._activeChangedId) {
             this._service.disconnect(this._activeChangedId);
