@@ -91,7 +91,9 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
 
         // Row 2 — Exit country submenu
         this._exitItem = new PopupMenu.PopupSubMenuMenuItem(_('Exit country'));
-        // Cap the country list at ~6 rows with a scrollbar.
+        // Make the country list scroll instead of running off the screen.
+        // The height itself is computed at open time — see _fitExitSubmenu();
+        // this part is what makes the scrollbar actually appear.
         //
         // Stock PopupSubMenu._needsScrollbar() reads max-height from the
         // *top* menu's theme node (gnome-shell ui/popupMenu.js line ~1168),
@@ -100,7 +102,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         // read the submenu's own max-height + the inner box's natural
         // height — then open() flips the submenu's internal ScrollView to
         // AUTOMATIC and the content clips+scrolls as expected.
-        this._exitItem.menu.actor.set_style('max-height: 14em;');
+
         this._exitItem.menu._needsScrollbar = function () {
             const [, natural] = this.box.get_preferred_height(-1);
             const maxH = this.actor.get_theme_node().get_max_height();
@@ -144,10 +146,49 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         prefsItem.connect('activate', () => this._ext.openPreferences());
         this.menu.addMenuItem(prefsItem);
 
+        this._fitExitSubmenu();
         this._menuOpenId = this.menu.connect('open-state-changed', (_m, open) => {
-            if (open && this.checked && this._controller?.isReady)
+            if (!open) return;
+            // 每次打开都重算：屏幕分辨率、缩放、dock 都可能在两次打开之间变过
+            this._fitExitSubmenu();
+            if (this.checked && this._controller?.isReady)
                 this._refreshCircuitView();
         });
+    }
+
+    /**
+     * 给国家子菜单定一个不会溢出屏幕的高度上限。
+     *
+     * 原先写死 14em。可用高度取决于分辨率、缩放、面板与 dock 占掉多少，以及
+     * 菜单被拉开时它自己在屏幕上的位置——没有哪个常数能同时满足这些，32 个
+     * 国家在较矮的屏幕上会直接顶出屏幕外，底下的条目点不到。
+     *
+     * 量的是「Exit country 那一行的下沿」到「工作区底边」还剩多少。用工作区
+     * 而非屏幕高度：面板和 dock 占掉的部分不能算进去。
+     */
+    _fitExitSubmenu() {
+        const FALLBACK = 320;
+        const MARGIN = 24;
+        const MIN = 120;
+
+        let available = FALLBACK;
+        try {
+            const actor = this._exitItem.actor ?? this._exitItem;
+            const [, y] = actor.get_transformed_position();
+            const monitor = Main.layoutManager.findMonitorForActor(actor)
+                ?? Main.layoutManager.primaryMonitor;
+            const workArea = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
+            const computed =
+                workArea.y + workArea.height - y - (actor.get_height() || 0) - MARGIN;
+            // Number.isFinite 挡住布局未分配时的 NaN——它会让 max-height 变成
+            // "NaNpx"，St 解析失败后等于没有上限，症状恰好还是溢出。
+            if (Number.isFinite(computed)) available = computed;
+        } catch (_error) {
+            // 量不到就用保守值，不让这里的异常影响菜单本身
+        }
+
+        this._exitItem.menu.actor.set_style(
+            `max-height: ${Math.max(MIN, Math.round(available))}px;`);
     }
 
     _refreshCountryChecks() {
