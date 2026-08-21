@@ -19,7 +19,7 @@ import {gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {TorController, ControllerState} from '../lib/torController.js';
 import {TorService} from '../lib/torService.js';
 import {Tun2SocksService} from '../lib/tun2socksService.js';
-import {COUNTRIES, countryName} from '../lib/countries.js';
+import {COUNTRIES, countryFlag, countryLabel, countryName} from '../lib/countries.js';
 import {pickPrimaryCircuit} from '../lib/circuitParser.js';
 
 // Custom tor-symbolic.svg lives in icons/. We load it as a Gio.FileIcon at
@@ -109,7 +109,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         this.menu.addMenuItem(this._exitItem);
         this._countryItems = new Map();  // code → PopupMenuItem
         for (const c of COUNTRIES) {
-            const item = new PopupMenu.PopupMenuItem(c.name);
+            const item = new PopupMenu.PopupMenuItem(countryLabel(c.code));
             item.connect('activate', () => this._onCountrySelected(c.code));
             this._exitItem.menu.addMenuItem(item);
             this._countryItems.set(c.code, item);
@@ -157,7 +157,10 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
                 ? PopupMenu.Ornament.CHECK
                 : PopupMenu.Ornament.NONE);
         }
-        this._exitItem.label.text = `${_('Exit')}: ${current ? countryName(current) : _('Any')}`;
+        // 国旗放在名字前面，与下面列表里每一行的排布一致：扫一眼就能对上
+        this._exitItem.label.text = current
+            ? `${_('Exit')}: ${countryFlag(current)} ${countryName(current)}`
+            : `${_('Exit')}: ${_('Any')}`;
     }
 
     _statusSubtitle() {
@@ -166,7 +169,7 @@ class TorToggle extends QuickSettings.QuickMenuToggle {
         if (!this.checked) return _('Off');
         const country = this._settings.get_string('default-exit-country');
         return country
-            ? `${_('On')} · ${_('Exit')}: ${countryName(country)}`
+            ? `${_('On')} · ${_('Exit')}: ${countryFlag(country)} ${countryName(country)}`
             : _('On');
     }
 
