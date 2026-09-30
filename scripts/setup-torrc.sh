@@ -4,6 +4,10 @@
 # Safe to re-run; only appends lines that are missing.
 set -euo pipefail
 
+# NixOS: bail out with instructions for nix/module.nix before sudo or any edits.
+. "$(dirname "${BASH_SOURCE[0]}")/nixos-guard.sh"
+nixos_guard torrc
+
 TORRC=/etc/tor/torrc
 CONTROL_PORT=${CONTROL_PORT:-9051}
 TARGET_USER=${SUDO_USER:-${PKEXEC_UID:+$(getent passwd "$PKEXEC_UID" | cut -d: -f1)}}

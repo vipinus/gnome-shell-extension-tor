@@ -104,6 +104,33 @@ Uninstall (keeps tor binary, user, data dir — remove those manually if desired
 make tun2socks-uninstall
 ```
 
+### NixOS
+
+The scripts above patch `/etc/tor/torrc`, drop files into `/usr/local` and call apt/dnf/pacman/zypper — none of which works on NixOS (they detect it and stop with these instructions). Use the NixOS module instead; it sets up the same things declaratively (tor with ControlPort + group-readable cookie, polkit rule, and optionally the tun2socks transparent proxy, routing helper and resume hook):
+
+```nix
+# flake.nix
+inputs.tor-ext.url = "github:vipinus/gnome-shell-extension-tor";
+# nixosConfigurations.<host> = nixpkgs.lib.nixosSystem { modules = [ tor-ext.nixosModules.default ... ]; };
+
+# configuration.nix
+services.tor-ext = {
+  enable = true;
+  users = [ "alice" ];              # added to the tor group (cookie access); log out/in once
+  transparentProxy.enable = true;   # optional — Path 3 equivalent
+};
+```
+
+`nixosModules.default` installs the extension built from this repo. Without flakes, import `nix/module.nix` directly; it then installs `gnomeExtensions.tor` from nixpkgs (the extensions.gnome.org snapshot):
+
+```nix
+imports = [ "${fetchTarball "https://github.com/vipinus/gnome-shell-extension-tor/archive/main.tar.gz"}/nix/module.nix" ];
+```
+
+Options: `autostart` (default `false` — the tile owns tor's lifecycle), `socksPort` / `controlPort` (9050 / 9051), `obfs4Package` (`lyrebird`), `transparentProxy.{package,tunDevice,tunAddress,dnsPort}`. The module also sets the extension's defaults via dconf — notably `obfs4-binary` to lyrebird's `/nix/store` path, since NixOS runs tor chrooted with only the store mounted.
+
+Enable the extension for your user if you manage the enabled list yourself (`gnome-extensions enable tor-ext@fabric.soul7.gmail.com` after logging in again). The module is covered by a VM test: `nix build .#checks.x86_64-linux.vm`.
+
 ## Preferences
 
 Right-click the Tor tile → **Preferences…**, or:
@@ -158,6 +185,8 @@ icons/                       onion SVG
 polkit/                      one-time install assets (NOT in the EGO zip)
 systemd/                     unit templates rendered by install-tor-tun2socks.sh
 scripts/                     installers + routing helper + bridge harvester
+nix/                         NixOS module, package, VM test (NOT in the EGO zip)
+flake.nix                    packages / nixosModules.default / checks.vm
 .github/workflows/           bridges-refresh CI
 bridges/                     daily-refreshed public bridge JSON
 ```

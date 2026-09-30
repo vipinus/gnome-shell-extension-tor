@@ -23,6 +23,10 @@
 # DBus, polkit allows it without prompting.
 set -euo pipefail
 
+# NixOS: bail out with instructions for nix/module.nix before sudo or any edits.
+. "$(dirname "${BASH_SOURCE[0]}")/nixos-guard.sh"
+nixos_guard install
+
 TUN2SOCKS_VERSION=${TUN2SOCKS_VERSION:-v2.5.2}
 TUN2SOCKS_BIN=${TUN2SOCKS:-/usr/local/bin/tun2socks}
 TUN_DEV=${TUN_DEV:-tun-tor}

@@ -29,6 +29,10 @@
 #   sudo apt remove tor obfs4proxy      # nuke distro tor too
 set -euo pipefail
 
+# NixOS: bail out with instructions for nix/module.nix before sudo or any edits.
+. "$(dirname "${BASH_SOURCE[0]}")/nixos-guard.sh"
+nixos_guard uninstall
+
 UUID=tor-ext@fabric.soul7.gmail.com
 EXT_DIR_USER=${HOME}/.local/share/gnome-shell/extensions/${UUID}
 TORRC=${TORRC:-/etc/tor/torrc}

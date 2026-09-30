@@ -58,7 +58,7 @@ tun2socks-uninstall:
 	bash scripts/uninstall-tor-tun2socks.sh
 
 pack: schemas locale
-	@# EGO submission: scripts/, polkit/, systemd/ MUST NOT be in the zip —
+	@# EGO submission: scripts/, polkit/, systemd/, nix/, flake.* MUST NOT be in the zip —
 	@# they are part of one-time host setup, not the extension runtime.
 	gnome-extensions pack \
 	    --force \
@@ -69,8 +69,8 @@ pack: schemas locale
 	    --podir=po \
 	    --schema=schemas/$(SCHEMA_ID).gschema.xml \
 	    .
-	@echo "-- inspecting zip contents (should NOT contain scripts/, polkit/, systemd/) --"
-	@if unzip -l $(UUID).shell-extension.zip | awk '{print $$NF}' | grep -E "^(scripts|polkit|systemd)/" >/dev/null; then \
+	@echo "-- inspecting zip contents (should NOT contain scripts/, polkit/, systemd/, nix/, flake.*) --"
+	@if unzip -l $(UUID).shell-extension.zip | awk '{print $$NF}' | grep -E "^((scripts|polkit|systemd|nix)/|flake\\.)" >/dev/null; then \
 	    echo "!! FAIL: host-only files leaked into pack"; exit 1; \
 	else \
 	    echo "ok, zip is clean ($$(stat -c %s $(UUID).shell-extension.zip) bytes)"; \
