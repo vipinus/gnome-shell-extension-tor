@@ -1,16 +1,15 @@
 {
-  "fetched_at": "2026-10-07T10:14:21Z",
+  "fetched_at": "2026-10-08T10:33:25Z",
   "source": "https://bridges.torproject.org/moat/circumvention/defaults",
   "counts": {
-    "obfs4": 5
+    "obfs4": 4
   },
   "bridges": {
     "obfs4": [
       "obfs4 212.83.43.95:443 BFE712113A72899AD685764B211FACD30FF52C31 cert=ayq0XzCwhpdysn5o0EyDUbmSOx3X/oTEbzDMvczHOdBJKlvIdHHLJGkZARtT4dcBFArPPg iat-mode=1",
       "obfs4 146.57.248.225:22 10A6CD36A537FCE513A322361547444B393989F0 cert=K1gDtDAIcUfeLqbstggjIw2rtgIKqdIhUlHp82XRqNSq/mtAjp1BIC9vHKJ2FAEpGssTPw iat-mode=0",
-      "obfs4 212.83.43.74:443 39562501228A4D5E27FCA4C0C81A01EE23AE3EE4 cert=PBwr+S8JTVZo6MPdHnkTwXJPILWADLqfMGoVvhZClMq/Urndyd42BwX9YFJHZnBB3H0XCw iat-mode=1",
-      "obfs4 95.216.217.25:7002 AE4F65F96BD3289F469125EAEFEF9FFB6105573C cert=sEpjJhXtxJ6/XnODDeJ/vfoeZZ7RdpdxIPobSu8y6f/dPnacHqPYGWNrLz7B1LkowIG4Og iat-mode=0",
-      "obfs4 185.177.207.242:11242 4DB93259BAFF8C68E613E635066E4478AE99179D cert=XHpntCk+YV9szz+bfv3T+0bG3svgqjbjJ8tr51dfGeYSGJKAuVkU/Bi3rQkcwMvYEuiITg iat-mode=0"
+      "obfs4 194.13.83.43:443 1D53FD6E67DD17E8437BABC82E9A8794E9110FA7 cert=KBvc1IhGeJJWIc3Ml3AZhfEHdE6YgDxvGmimJJRzMhRJlz1mXAkjWCytT8aLKGVOJJzdFA iat-mode=0",
+      "obfs4 25.8.89.151:9443 2096E8E90BCDE473150448766F71B3F7E36E49BE cert=wUXdLMrAuk8BwQ8I1N7JFf5BkI1/HVw0onBfcBLfRWUbE+n3shOMFWhU/hzz660x3+EOKw iat-mode=0"
     ]
   }
 }
